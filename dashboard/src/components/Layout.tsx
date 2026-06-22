@@ -2,7 +2,7 @@ import { NavLink, Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import {
   Home, Building2, Wrench, Settings, Users, Bell,
-  LogOut, Menu, X, UserCircle
+  LogOut, Menu, X, UserCircle, Package
 } from "lucide-react";
 import { useState } from "react";
 
@@ -39,6 +39,7 @@ export default function Layout() {
             ...baseNav,
             ...(canViewKB ? [{ to: "/properties", icon: Building2, label: "Properties & KB" }] : []),
             ...(canViewMaintenance ? [{ to: "/tickets", icon: Wrench, label: "Maintenance" }] : []),
+            ...(canViewMaintenance ? [{ to: "/extra-requests", icon: Package, label: "Extra Requests" }] : []),
           ].map((n) => (
             <NavLink
               key={n.to}

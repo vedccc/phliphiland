@@ -10,7 +10,7 @@ import Users from "./pages/Users";
 import AcceptInvite from "./pages/AcceptInvite";
 import Profile from "./pages/Profile";
 import SmsRecipients from "./pages/SmsRecipients";
-import CleanerChecklist from "./pages/public/CleanerChecklist";
+import ExtraRequests from "./pages/ExtraRequests";
 import ExtrasApproval from "./pages/public/ExtrasApproval";
 
 export default function App() {
@@ -18,7 +18,6 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public, no auth */}
-        <Route path="/c/:token" element={<CleanerChecklist />} />
         <Route path="/r/:token" element={<ExtrasApproval />} />
 
         {/* Auth-required */}
@@ -35,6 +34,7 @@ export default function App() {
                   <Route path="profile" element={<Profile />} />
                   <Route path="properties" element={<PropertiesKB />} />
                   <Route path="tickets" element={<Tickets />} />
+                  <Route path="extra-requests" element={<ExtraRequests />} />
                   <Route path="agent-config" element={<AgentConfig />} />
                   <Route path="users" element={<Users />} />
                   <Route path="sms-recipients" element={<SmsRecipients />} />
