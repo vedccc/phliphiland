@@ -363,6 +363,12 @@ export default function PropertiesKB() {
               </div>
               {isSuperAdmin && (
                 <div className="flex flex-col items-end gap-2">
+                  <button
+                    onClick={() => deleteProperty(selected)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50"
+                  >
+                    <Trash2 size={13} /> Delete property
+                  </button>
                   <div className="flex items-center gap-3">
                     <span className={`text-sm ${isPaused ? "text-red-600 font-medium" : "text-gray-500"}`}>
                       {isPaused ? "Paused" : "Active"}

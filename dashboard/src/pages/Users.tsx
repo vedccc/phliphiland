@@ -55,7 +55,6 @@ export default function Users() {
   const [inviteRole, setInviteRole] = useState<"member" | "super_admin">("member");
   const [inviteKB, setInviteKB] = useState(true);
   const [inviteMaintenance, setInviteMaintenance] = useState(true);
-  const [inviteReservations, setInviteReservations] = useState(true);
   const [inviteSuccess, setInviteSuccess] = useState<{ email: string; password: string } | null>(null);
 
   // Per-row reset password state
@@ -95,7 +94,6 @@ export default function Users() {
       role: inviteRole,
       can_view_kb: inviteKB,
       can_view_maintenance: inviteMaintenance,
-      can_view_reservations: inviteReservations,
     });
     setInviting(false);
     if (status !== 200 || (data as any).status !== "ok") {
@@ -104,7 +102,7 @@ export default function Users() {
     }
     setInviteSuccess({ email: inviteEmail, password: (data as any).password });
     setInviteEmail(""); setInviteRole("member");
-    setInviteKB(true); setInviteMaintenance(true); setInviteReservations(true);
+    setInviteKB(true); setInviteMaintenance(true);
     setShowInvite(false);
     loadUsers();
   };
@@ -265,7 +263,6 @@ export default function Users() {
                 {[
                   { key: "kb", label: "Knowledge Base", value: inviteKB, set: setInviteKB },
                   { key: "m", label: "Maintenance", value: inviteMaintenance, set: setInviteMaintenance },
-                  { key: "r", label: "Reservations", value: inviteReservations, set: setInviteReservations },
                 ].map((c) => (
                   <label key={c.key} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
                     <input type="checkbox" checked={c.value} onChange={(e) => c.set(e.target.checked)}
@@ -300,7 +297,6 @@ export default function Users() {
             const accessSummary = [
               u.can_view_kb && "KB",
               u.can_view_maintenance && "Maintenance",
-              u.can_view_reservations && "Reservations",
             ].filter(Boolean).join(" · ") || "No access";
 
             return (
@@ -388,7 +384,6 @@ export default function Users() {
                           {[
                             { key: "can_view_kb" as const, label: "Knowledge Base" },
                             { key: "can_view_maintenance" as const, label: "Maintenance" },
-                            { key: "can_view_reservations" as const, label: "Reservations" },
                           ].map((perm) => (
                             <label key={perm.key} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-white hover:bg-gray-50 cursor-pointer">
                               <input
