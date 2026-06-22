@@ -56,7 +56,7 @@ export default function ExtraRequests() {
         <div className="flex gap-1.5">
           {["pending", "approved", "declined", "all"].map((s) => (
             <button key={s} onClick={() => setFilter(s)}
-              className={`px-4 py-1.5 text-sm rounded-lg ${filter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+              className={`px-4 py-1.5 text-sm rounded-lg ${filter === s ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
               {s === "all" ? "All" : approvalLabel[s] || s}
             </button>
           ))}

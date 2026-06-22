@@ -285,7 +285,7 @@ export default function PropertiesKB() {
           <h2 className="text-lg font-semibold text-gray-900">Properties</h2>
           {isSuperAdmin && (
             <button onClick={syncProperties} disabled={syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
               <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
               {syncing ? "Syncing" : "Sync"}
             </button>
@@ -448,7 +448,7 @@ export default function PropertiesKB() {
               </div>
               <div className="flex justify-end mt-4">
                 <button onClick={addEntry} disabled={!newQ.trim() || !newA.trim()}
-                  className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                  className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
                   <Plus size={18} /> Add
                 </button>
               </div>
@@ -469,7 +469,7 @@ export default function PropertiesKB() {
                       {cloneSelected.size === entries.length ? "Deselect All" : "Select All"}
                     </button>
                     <button onClick={() => setShowForwardModal(true)} disabled={cloneSelected.size === 0}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
                       <ArrowRight size={14} /> Forward ({cloneSelected.size})
                     </button>
                     <button onClick={exitCloneMode}
@@ -505,7 +505,7 @@ export default function PropertiesKB() {
                     <button onClick={() => setShowForwardModal(false)}
                       className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
                     <button onClick={forwardEntries} disabled={forwardTargets.size === 0 || forwarding}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
                       {forwarding ? "Copying..." : `Copy to ${forwardTargets.size} ${forwardTargets.size === 1 ? "property" : "properties"}`}
                     </button>
                   </div>

@@ -180,7 +180,7 @@ export default function Users() {
         </div>
         <button
           onClick={() => { setShowInvite(!showInvite); setInviteSuccess(null); }}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
         >
           <Plus size={18} /> Add User
         </button>
@@ -249,7 +249,7 @@ export default function Users() {
               {(["member", "super_admin"] as const).map((r) => (
                 <button key={r} onClick={() => setInviteRole(r)}
                   className={`px-4 py-1.5 text-sm rounded-lg border transition-colors ${inviteRole === r
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-emerald-600 text-white border-gray-900"
                     : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>
                   {r === "super_admin" ? "Admin" : "Member"}
                 </button>
@@ -275,7 +275,7 @@ export default function Users() {
           )}
           <div className="flex gap-3">
             <button onClick={invite} disabled={inviting || !inviteEmail}
-              className="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+              className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
               {inviting ? "Creating..." : "Create user"}
             </button>
             <button onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
@@ -368,7 +368,7 @@ export default function Users() {
                           className="flex-1 px-3 py-1.5 text-sm font-mono border border-gray-200 rounded-lg"
                         />
                         <button onClick={submitReset} disabled={resetting || resetPassword.length < 6}
-                          className="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-lg disabled:opacity-40">
+                          className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg disabled:opacity-40">
                           {resetting ? "..." : "Save"}
                         </button>
                         <button onClick={() => { setResetUserId(null); setResetPassword(""); }}
@@ -399,7 +399,7 @@ export default function Users() {
                           <button
                             onClick={() => saveAccess(u)}
                             disabled={!dirtyAccess[u.id] || savingAccess === u.id}
-                            className="px-4 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             {savingAccess === u.id ? "Saving…" : "Save permissions"}
                           </button>

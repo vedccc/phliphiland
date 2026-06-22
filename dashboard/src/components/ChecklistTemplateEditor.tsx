@@ -203,7 +203,7 @@ export default function ChecklistTemplateEditor({ propertyId }: { propertyId: st
         <button
           onClick={addItem}
           disabled={!newBody.trim() || adding}
-          className="flex items-center gap-1.5 px-4 py-2 text-base bg-gray-900 text-white rounded-lg disabled:opacity-40"
+          className="flex items-center gap-1.5 px-4 py-2 text-base bg-emerald-600 text-white rounded-lg disabled:opacity-40"
         >
           <Plus size={18} /> {adding ? "Adding…" : "Add"}
         </button>

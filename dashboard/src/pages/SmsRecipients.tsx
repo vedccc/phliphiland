@@ -80,7 +80,7 @@ export default function SmsRecipients() {
     <div className="w-full px-4 sm:px-6 py-6 lg:py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">SMS Recipients</h1>
-        <button onClick={() => setAdding(!adding)} className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800">
+        <button onClick={() => setAdding(!adding)} className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
           <Plus size={20} /> Add Recipient
         </button>
       </div>
@@ -127,7 +127,7 @@ export default function SmsRecipients() {
               Extras approval requests
             </label>
           </div>
-          <button onClick={add} disabled={!canSave} className={`px-5 py-2 text-base font-medium rounded-lg ${canSave ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
+          <button onClick={add} disabled={!canSave} className={`px-5 py-2 text-base font-medium rounded-lg ${canSave ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
         </div>
       )}
 

@@ -127,14 +127,14 @@ export default function Tickets() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-semibold text-gray-900">Maintenance Tickets</h1>
-          <button onClick={() => setAdding(!adding)} className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800">
+          <button onClick={() => setAdding(!adding)} className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
             <Plus size={16} /> Add Ticket
           </button>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {["open", "in_progress", "resolved", "all"].map((s) => (
             <button key={s} onClick={() => setFilter(s)}
-              className={`px-4 py-1.5 text-sm rounded-lg ${filter === s ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+              className={`px-4 py-1.5 text-sm rounded-lg ${filter === s ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
               {s === "all" ? "All" : statusLabel[s] || s}
             </button>
           ))}
@@ -182,7 +182,7 @@ export default function Tickets() {
               className="mt-1.5 block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
             {newFile && <span className="text-xs text-gray-400 mt-1 block">Selected: {newFile.name}</span>}
           </label>
-          <button onClick={addTicket} disabled={!canAdd} className={`px-5 py-2 text-base font-medium rounded-lg ${canAdd ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
+          <button onClick={addTicket} disabled={!canAdd} className={`px-5 py-2 text-base font-medium rounded-lg ${canAdd ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
         </div>
       )}
 

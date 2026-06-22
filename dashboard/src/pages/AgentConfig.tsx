@@ -222,7 +222,7 @@ function AllowedExtrasTab() {
 
       <div className="flex items-center gap-4 mt-4">
         <button onClick={save} disabled={saved || saving}
-          className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+          className="flex items-center gap-2 px-5 py-2 text-base font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
           <Check size={18} /> {saving ? "Saving..." : "Save"}
         </button>
         {saved && <span className="text-sm text-gray-400">All changes saved</span>}

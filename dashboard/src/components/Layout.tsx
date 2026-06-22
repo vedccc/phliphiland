@@ -48,7 +48,7 @@ export default function Layout() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-5 py-2.5 text-base mx-2 rounded-lg ${
-                  isActive ? "bg-gray-100 text-gray-900 font-medium" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  isActive ? "bg-emerald-50 text-emerald-700 font-medium" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                 }`
               }
             >
@@ -67,7 +67,7 @@ export default function Layout() {
                   onClick={() => setMenuOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-5 py-2.5 text-base mx-2 rounded-lg ${
-                      isActive ? "bg-gray-100 text-gray-900 font-medium" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                      isActive ? "bg-emerald-50 text-emerald-700 font-medium" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                     }`
                   }
                 >
