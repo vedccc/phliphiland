@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* ── Phillip Island Host brand theme ──────────────────────────────
+   The app's primary accent utilities are written as `emerald-*`.
+   We remap the emerald ramp to the brand orange (#e5733a from the
+   logo), so every emerald utility across the app renders orange
+   without touching each file. Brand black stays as gray-900/#1a1a1a. */
+@theme {
+  --color-emerald-50: #fdf4ee;
+  --color-emerald-100: #fbe4d4;
+  --color-emerald-200: #f6c7a4;
+  --color-emerald-300: #f0a873;
+  --color-emerald-400: #ea8b4c;
+  --color-emerald-500: #e5733a;
+  --color-emerald-600: #d8602a;
+  --color-emerald-700: #b44c20;
+  --color-emerald-800: #8f3c1b;
+  --color-emerald-900: #723016;
+
+  --color-brand: #e5733a;
+  --color-brand-dark: #1a1a1a;
+}
+
+:root {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+body { margin: 0; min-height: 100vh; }
+* { box-sizing: border-box; }

@@ -1,0 +1,18 @@
+node_modules
+.trigger
+dist
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude/run-supabase-mcp.sh
+.mcp.json
+
+# Reference project (not part of this codebase)
+whole/
+prompt-draft.html
+prompt-edit.md
+
+# supabase linked-project + tsc build info
+**/.temp/
+*.tsbuildinfo

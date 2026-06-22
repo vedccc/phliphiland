@@ -1,0 +1,35 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#AFC8EA"/>
+      <stop offset="50%" stop-color="#3D7BD0"/>
+      <stop offset="100%" stop-color="#15359A"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#E6F2FF"/>
+      <stop offset="45%" stop-color="#3B8AF0"/>
+      <stop offset="100%" stop-color="#072269"/>
+    </radialGradient>
+    <linearGradient id="speed" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#1B4DD8" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0F3DB9" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="cm">
+      <rect width="32" height="32" fill="black"/>
+      <circle cx="22" cy="16" r="10" fill="white"/>
+      <circle cx="25" cy="16" r="7.5" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Speed lines -->
+  <line x1="3"  y1="14" x2="14" y2="14" stroke="url(#speed)" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+  <line x1="1"  y1="16" x2="15" y2="16" stroke="url(#speed)" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="3"  y1="18" x2="14" y2="18" stroke="url(#speed)" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Crescent -->
+  <rect width="32" height="32" mask="url(#cm)" fill="url(#g)"/>
+
+  <!-- Orb -->
+  <circle cx="17" cy="16" r="3.4" fill="url(#orb)"/>
+  <circle cx="16" cy="15" r="0.9" fill="white" opacity="0.7"/>
+</svg>

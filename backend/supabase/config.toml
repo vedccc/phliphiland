@@ -1,0 +1,16 @@
+project_id = "ictumlksmzjenevtaqvp"
+
+[functions.guesty-webhook]
+verify_jwt = false
+
+[functions.checklist-resolve]
+verify_jwt = false
+
+[functions.checklist-mark-item]
+verify_jwt = false
+
+[functions.extras-resolve]
+verify_jwt = false
+
+[functions.extras-respond]
+verify_jwt = false
