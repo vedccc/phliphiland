@@ -54,6 +54,7 @@ export default function Tickets() {
   const [adding, setAdding] = useState(false);
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({ property_id: "", description: "", urgency: "medium", status: "open" });
+  const [newFile, setNewFile] = useState<File | null>(null);
 
   const load = () => {
     let q = supabase.from("maintenance_tickets").select("*, properties(name)").order("created_at", { ascending: false });
@@ -76,15 +77,18 @@ export default function Tickets() {
   const canAdd = form.property_id !== "" && form.description.trim() !== "";
   const addTicket = async () => {
     if (!canAdd) return;
-    await supabase.from("maintenance_tickets").insert({
+    const { data: created, error } = await supabase.from("maintenance_tickets").insert({
       property_id: form.property_id,
       description: form.description.trim(),
       urgency: form.urgency,
       status: form.status,
       guest_context: "Manually created",
       reservation_uuid: "manual",
-    });
+    }).select("id").single();
+    if (error || !created) { alert("Could not create ticket: " + (error?.message ?? "unknown")); return; }
+    if (newFile) await uploadInvoice(created.id, newFile);
     setForm({ property_id: "", description: "", urgency: "medium", status: "open" });
+    setNewFile(null);
     setAdding(false);
     load();
   };
@@ -172,6 +176,12 @@ export default function Tickets() {
               </select>
             </label>
           </div>
+          <label className="block mb-5">
+            <span className="text-sm text-gray-400 font-medium uppercase">Invoice (optional)</span>
+            <input type="file" onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+              className="mt-1.5 block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
+            {newFile && <span className="text-xs text-gray-400 mt-1 block">Selected: {newFile.name}</span>}
+          </label>
           <button onClick={addTicket} disabled={!canAdd} className={`px-5 py-2 text-base font-medium rounded-lg ${canAdd ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
         </div>
       )}
