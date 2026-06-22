@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Upload, FileText, X } from "lucide-react";
+import { Plus, Upload, FileText, X, Eye, Download } from "lucide-react";
 
 interface Ticket {
   id: string;
@@ -45,6 +45,8 @@ const statusLabel: Record<string, string> = {
 };
 
 const INVOICE_BUCKET = "ticket-invoices";
+const isImage = (n: string) => /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(n);
+const isPdf = (n: string) => /\.pdf$/i.test(n);
 
 export default function Tickets() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -55,6 +57,10 @@ export default function Tickets() {
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({ property_id: "", description: "", urgency: "medium", status: "open" });
   const [newFile, setNewFile] = useState<File | null>(null);
+  // Invoice preview modal
+  const [viewTicketId, setViewTicketId] = useState<string | null>(null);
+  const [viewIndex, setViewIndex] = useState(0);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const load = () => {
     let q = supabase.from("maintenance_tickets").select("*, properties(name)").order("created_at", { ascending: false });
@@ -122,6 +128,29 @@ export default function Tickets() {
     loadFiles();
   };
 
+  // Fetch-then-download so cross-origin Storage URLs actually save (the <a download>
+  // attribute is ignored cross-origin, so we download the blob and save it locally).
+  const downloadOne = async (f: TicketFile) => {
+    try {
+      const res = await fetch(f.file_url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.file_name;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(f.file_url, "_blank");
+    }
+  };
+
+  const downloadAll = async (list: TicketFile[]) => {
+    setDownloadingAll(true);
+    try { for (const f of list) await downloadOne(f); } finally { setDownloadingAll(false); }
+  };
+
+  const openView = (ticketId: string) => { setViewTicketId(ticketId); setViewIndex(0); };
+
   return (
     <div className="w-full px-4 sm:px-6 py-6 lg:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -187,68 +216,139 @@ export default function Tickets() {
       )}
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-        <table className="w-full text-base min-w-[760px]">
+        <table className="w-full text-base min-w-[820px]">
           <thead>
             <tr className="border-b border-gray-100 text-sm text-gray-400 uppercase tracking-wider">
               <th className="text-left px-5 py-4 font-medium w-28">Priority</th>
               <th className="text-left px-5 py-4 font-medium">Property</th>
               <th className="text-left px-5 py-4 font-medium">Issue</th>
-              <th className="text-left px-5 py-4 font-medium w-56">Invoices</th>
+              <th className="text-left px-5 py-4 font-medium w-64">Invoices</th>
               <th className="text-left px-5 py-4 font-medium w-36">Status</th>
             </tr>
           </thead>
           <tbody>
-            {tickets.map((t) => (
-              <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-top">
-                {/* Priority — read-only, set by AI */}
-                <td className="px-5 py-4">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-medium border ${urgencyColor[t.urgency] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
-                    <span className={`w-2 h-2 rounded-full ${urgencyDot[t.urgency]}`} />
-                    {t.urgency.charAt(0).toUpperCase() + t.urgency.slice(1)}
-                  </span>
-                </td>
-                {/* Property + date */}
-                <td className="px-5 py-4">
-                  <div className="text-base font-medium text-gray-900">{(t.properties as any)?.name}</div>
-                  <div className="text-sm text-gray-400">{new Date(t.created_at).toLocaleString("en-US", { timeZone: "Australia/Melbourne" })}</div>
-                </td>
-                {/* Description */}
-                <td className="px-5 py-4 text-gray-700">{t.description}</td>
-                {/* Invoices — file upload */}
-                <td className="px-5 py-4">
-                  <div className="flex flex-col gap-1.5">
-                    {(files[t.id] ?? []).map((f) => (
-                      <span key={f.id} className="inline-flex items-center gap-1.5 text-sm group/file">
-                        <a href={f.file_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-700 hover:underline max-w-[160px] truncate">
-                          <FileText size={13} className="shrink-0" /> <span className="truncate">{f.file_name}</span>
-                        </a>
-                        <button onClick={() => removeFile(f)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover/file:opacity-100"><X size={13} /></button>
-                      </span>
-                    ))}
-                    <label className={`inline-flex items-center gap-1.5 text-sm cursor-pointer ${uploading === t.id ? "text-gray-300" : "text-gray-500 hover:text-gray-800"}`}>
-                      <Upload size={14} /> {uploading === t.id ? "Uploading…" : "Upload invoice"}
-                      <input type="file" className="hidden" disabled={uploading === t.id}
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadInvoice(t.id, f); e.currentTarget.value = ""; }} />
-                    </label>
-                  </div>
-                </td>
-                {/* Status dropdown */}
-                <td className="px-5 py-4">
-                  <select value={t.status} onChange={(e) => updateField(t.id, "status", e.target.value)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border appearance-none cursor-pointer ${statusColor[t.status] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
-                    {statuses.map((s) => (
-                      <option key={s} value={s}>{statusLabel[s]}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
+            {tickets.map((t) => {
+              const count = (files[t.id] ?? []).length;
+              return (
+                <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-top">
+                  {/* Priority — read-only, set by AI */}
+                  <td className="px-5 py-4">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-medium border ${urgencyColor[t.urgency] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      <span className={`w-2 h-2 rounded-full ${urgencyDot[t.urgency]}`} />
+                      {t.urgency.charAt(0).toUpperCase() + t.urgency.slice(1)}
+                    </span>
+                  </td>
+                  {/* Property + date */}
+                  <td className="px-5 py-4">
+                    <div className="text-base font-medium text-gray-900">{(t.properties as any)?.name}</div>
+                    <div className="text-sm text-gray-400">{new Date(t.created_at).toLocaleString("en-US", { timeZone: "Australia/Melbourne" })}</div>
+                  </td>
+                  {/* Description */}
+                  <td className="px-5 py-4 text-gray-700">{t.description}</td>
+                  {/* Invoices — View + Upload */}
+                  <td className="px-5 py-4">
+                    <div className="flex flex-col gap-1.5 items-start">
+                      <button
+                        onClick={() => openView(t.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <Eye size={14} /> View invoices ({count})
+                      </button>
+                      <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${uploading === t.id ? "text-gray-300 bg-gray-50" : "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"}`}>
+                        <Upload size={14} /> {uploading === t.id ? "Uploading…" : "Upload invoice"}
+                        <input type="file" className="hidden" disabled={uploading === t.id}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadInvoice(t.id, f); e.currentTarget.value = ""; }} />
+                      </label>
+                    </div>
+                  </td>
+                  {/* Status dropdown */}
+                  <td className="px-5 py-4">
+                    <select value={t.status} onChange={(e) => updateField(t.id, "status", e.target.value)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border appearance-none cursor-pointer ${statusColor[t.status] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      {statuses.map((s) => (
+                        <option key={s} value={s}>{statusLabel[s]}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
             {tickets.length === 0 && (
               <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-400 text-base">No tickets found.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Invoice preview modal */}
+      {viewTicketId && (() => {
+        const list = files[viewTicketId] ?? [];
+        const active = list[viewIndex];
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewTicketId(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-100">
+                <h2 className="text-base font-semibold text-gray-900">Invoices ({list.length})</h2>
+                <div className="flex items-center gap-2">
+                  {list.length > 0 && (
+                    <button onClick={() => downloadAll(list)} disabled={downloadingAll}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                      <Download size={14} /> {downloadingAll ? "Downloading…" : "Download all"}
+                    </button>
+                  )}
+                  <button onClick={() => setViewTicketId(null)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100" aria-label="Close"><X size={18} /></button>
+                </div>
+              </div>
+
+              {list.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-gray-400">No invoices uploaded yet.</div>
+              ) : (
+                <div className="flex flex-1 min-h-0">
+                  {/* file switcher */}
+                  <div className="w-56 shrink-0 border-r border-gray-100 overflow-y-auto">
+                    {list.map((f, i) => (
+                      <div
+                        key={f.id}
+                        onClick={() => setViewIndex(i)}
+                        className={`group/f w-full text-left px-4 py-3 border-b border-gray-50 flex items-center gap-2 text-sm cursor-pointer ${i === viewIndex ? "bg-emerald-50 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
+                      >
+                        <FileText size={14} className="shrink-0" />
+                        <span className="truncate flex-1">{f.file_name}</span>
+                        <span onClick={(e) => { e.stopPropagation(); removeFile(f); }}
+                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover/f:opacity-100" title="Remove"><X size={13} /></span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* live preview */}
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex-1 min-h-0 overflow-auto bg-gray-50 flex items-center justify-center p-4">
+                      {active && (isImage(active.file_name) ? (
+                        <img src={active.file_url} alt={active.file_name} className="max-w-full max-h-full object-contain" />
+                      ) : isPdf(active.file_name) ? (
+                        <iframe src={active.file_url} title={active.file_name} className="w-full h-full border-0" />
+                      ) : (
+                        <div className="text-center text-gray-500">
+                          <FileText size={40} className="mx-auto mb-2 text-gray-300" />
+                          <div className="text-sm">No in-app preview for this file type — use Download.</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100">
+                      <span className="text-sm text-gray-500 truncate">{active?.file_name}</span>
+                      {active && (
+                        <button onClick={() => downloadOne(active)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shrink-0">
+                          <Download size={14} /> Download
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
