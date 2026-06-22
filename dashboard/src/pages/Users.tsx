@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
-import { Plus, Trash2, ChevronDown, ChevronUp, Key, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp, Key, AlertCircle, CheckCircle2, Copy } from "lucide-react";
 
 interface ProfileRow {
   id: string;
@@ -56,7 +56,7 @@ export default function Users() {
   const [inviteKB, setInviteKB] = useState(true);
   const [inviteMaintenance, setInviteMaintenance] = useState(true);
   const [inviteReservations, setInviteReservations] = useState(true);
-  const [inviteSuccess, setInviteSuccess] = useState<{ email: string } | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<{ email: string; password: string } | null>(null);
 
   // Per-row reset password state
   const [resetUserId, setResetUserId] = useState<string | null>(null);
@@ -89,11 +89,9 @@ export default function Users() {
   const invite = async () => {
     if (!inviteEmail) return;
     setInviting(true);
-    const { status, data } = await callManage({
+    const { status, data } = await callManage<{ password: string }>({
       op: "create",
       email: inviteEmail,
-      // Where the invite link should land — tracks whatever domain we're served from.
-      redirect_to: `${window.location.origin}/accept-invite`,
       role: inviteRole,
       can_view_kb: inviteKB,
       can_view_maintenance: inviteMaintenance,
@@ -101,10 +99,10 @@ export default function Users() {
     });
     setInviting(false);
     if (status !== 200 || (data as any).status !== "ok") {
-      showErr(((data as any).message || (data as any).detail || "Could not send invite.") as string);
+      showErr(((data as any).message || (data as any).detail || "Could not create user.") as string);
       return;
     }
-    setInviteSuccess({ email: inviteEmail });
+    setInviteSuccess({ email: inviteEmail, password: (data as any).password });
     setInviteEmail(""); setInviteRole("member");
     setInviteKB(true); setInviteMaintenance(true); setInviteReservations(true);
     setShowInvite(false);
@@ -186,7 +184,7 @@ export default function Users() {
           onClick={() => { setShowInvite(!showInvite); setInviteSuccess(null); }}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
         >
-          <Plus size={18} /> Invite User
+          <Plus size={18} /> Add User
         </button>
       </div>
 
@@ -202,15 +200,31 @@ export default function Users() {
         </div>
       )}
 
-      {/* Invite success card */}
+      {/* Created-user credentials card */}
       {inviteSuccess && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-base font-medium text-emerald-800">Invite sent to {inviteSuccess.email}</div>
+              <div className="text-base font-medium text-emerald-800">User created — share these credentials</div>
               <div className="text-sm text-emerald-700 mt-1">
-                They'll get an email with a link to set their password and sign in. The link expires after 24 hours — resend the invite if it lapses.
+                No email is sent. Copy the login details below and give them to the user; they can change the password after signing in.
               </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 max-w-xl">
+                <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-400 uppercase tracking-wider">Email</div>
+                  <div className="text-sm font-mono text-gray-800 break-all">{inviteSuccess.email}</div>
+                </div>
+                <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2">
+                  <div className="text-xs text-gray-400 uppercase tracking-wider">Temporary password</div>
+                  <div className="text-sm font-mono text-gray-800 break-all">{inviteSuccess.password}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(`Email: ${inviteSuccess.email}\nPassword: ${inviteSuccess.password}`); showOk("Credentials copied."); }}
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-800 bg-white border border-emerald-300 rounded-lg hover:bg-emerald-100"
+              >
+                <Copy size={14} /> Copy credentials
+              </button>
             </div>
             <button onClick={() => setInviteSuccess(null)} className="text-emerald-400 hover:text-emerald-600 p-1 shrink-0">
               <ChevronUp size={18} />
@@ -222,14 +236,14 @@ export default function Users() {
       {/* Invite form */}
       {showInvite && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-          <div className="text-base font-medium text-gray-900 mb-4">Invite new user</div>
+          <div className="text-base font-medium text-gray-900 mb-4">Add new user</div>
           <div className="mb-4">
             <label className="block">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email</span>
               <input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} type="email"
                 className="mt-1.5 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" placeholder="user@example.com" />
             </label>
-            <p className="text-xs text-gray-400 mt-1.5">An invite email is sent; the user sets their own password.</p>
+            <p className="text-xs text-gray-400 mt-1.5">A login is created with a generated password — you'll see it after creating, to share with the user.</p>
           </div>
           <div className="mb-4">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Role</span>
@@ -265,7 +279,7 @@ export default function Users() {
           <div className="flex gap-3">
             <button onClick={invite} disabled={inviting || !inviteEmail}
               className="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
-              {inviting ? "Sending invite..." : "Send invite"}
+              {inviting ? "Creating..." : "Create user"}
             </button>
             <button onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           </div>

@@ -7,7 +7,6 @@ import PropertiesKB from "./pages/PropertiesKB";
 import Tickets from "./pages/Tickets";
 import AgentConfig from "./pages/AgentConfig";
 import Users from "./pages/Users";
-import AcceptInvite from "./pages/AcceptInvite";
 import Profile from "./pages/Profile";
 import SmsRecipients from "./pages/SmsRecipients";
 import ExtraRequests from "./pages/ExtraRequests";
@@ -27,8 +26,6 @@ export default function App() {
             <AuthProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
-                <Route path="/accept-invite" element={<AcceptInvite />} />
-                <Route path="/reset-password" element={<AcceptInvite mode="recovery" />} />
                 <Route element={<Layout />}>
                   <Route index element={<Overview />} />
                   <Route path="profile" element={<Profile />} />

@@ -1,8 +1,16 @@
-// Admin-only user management. Uses Supabase Admin API to invite/delete users
-// (invite emails the user a set-password link; delete removes both auth.users +
-// profiles row). Role and access updates go through service-role to bypass RLS.
+// Admin-only user management. Uses the Supabase Admin API to create users with an
+// admin-generated password (no invite email is sent), delete users, and update
+// roles / access. All writes go through the service role to bypass RLS.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Generate a readable, strong temporary password (no ambiguous chars).
+function generatePassword(len = 14): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (n) => chars[n % chars.length]).join("");
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,31 +82,28 @@ Deno.serve(async (req: Request) => {
     return json({ status: "ok", users: enriched });
   }
 
-  // ─── Invite user (sends invite email; user sets their own password) ───
+  // ─── Create user (admin-generated password; NO invite email) ───
   if (op === "create") {
     const email = (body?.email as string | undefined)?.trim();
     const role = (body?.role as string | undefined) === "super_admin" ? "super_admin" : "member";
     const canViewKb = role === "super_admin" ? true : !!body?.can_view_kb;
     const canViewMaintenance = role === "super_admin" ? true : !!body?.can_view_maintenance;
     const canViewReservations = role === "super_admin" ? true : !!body?.can_view_reservations;
-    // Where the invite link lands so the user can set their password. The
-    // dashboard sends window.location.origin + "/accept-invite" so it tracks
-    // whatever domain it's served from; falls back to the SITE_URL env var.
-    const redirectTo =
-      (body?.redirect_to as string | undefined) ||
-      (Deno.env.get("SITE_URL") ? `${Deno.env.get("SITE_URL")}/accept-invite` : undefined);
-
     if (!email) return json({ status: "error", detail: "missing_email" }, 400);
 
-    // inviteUserByEmail creates the auth.users row WITHOUT a password and emails
-    // the user an invite link. Requires SMTP + Site URL configured in the
-    // Supabase dashboard, otherwise the mail silently never arrives.
-    const { data: created, error: createErr } = await serviceClient.auth.admin.inviteUserByEmail(
+    // Admin-generated account: create the user with a confirmed email and a
+    // strong random password (or an admin-supplied one), then return the
+    // password so the admin can share the credentials directly. No email sent.
+    const provided = (body?.password as string | undefined)?.trim();
+    const password = provided && provided.length >= 6 ? provided : generatePassword();
+
+    const { data: created, error: createErr } = await serviceClient.auth.admin.createUser({
       email,
-      redirectTo ? { redirectTo } : undefined,
-    );
+      password,
+      email_confirm: true,
+    });
     if (createErr || !created?.user) {
-      return json({ status: "error", detail: "invite_failed", message: createErr?.message ?? "unknown" }, 400);
+      return json({ status: "error", detail: "create_failed", message: createErr?.message ?? "unknown" }, 400);
     }
 
     const { error: profErr } = await serviceClient
@@ -117,6 +122,7 @@ Deno.serve(async (req: Request) => {
 
     return json({
       status: "ok",
+      password,
       user: {
         id: created.user.id,
         email: created.user.email,
