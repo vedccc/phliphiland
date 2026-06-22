@@ -205,7 +205,7 @@ export default function Users() {
             <div className="min-w-0">
               <div className="text-base font-medium text-emerald-800">User created — share these credentials</div>
               <div className="text-sm text-emerald-700 mt-1">
-                No email is sent. Copy the login details below and give them to the user; they can change the password after signing in.
+                No email is sent. Copy the login details below and give them to the user. This is their permanent login — only an admin can reset it.
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 max-w-xl">
                 <div className="bg-white border border-emerald-200 rounded-lg px-3 py-2">
