@@ -41,7 +41,7 @@ The agent composes and sends the final guest reply via Guesty. Exception: Sub-Wo
 
 - **Sub-Workflow D = no reply to guest.** Never guess/placeholder when escalating. Silence.
 - **Cooldowns are per-property**, not per-guest. When active, ALL messages for that property are ignored.
-- **Guest messages only** — the `guesty-webhook` ingress drops non-`fromGuest` messages; the `ALLOWED_RESERVATION_UUIDS` env gates which reservations the agent replies to (unset = safe/off, `*` = all).
+- **Guest messages only** — the `guesty-webhook` ingress drops non-`fromGuest` messages; the `ALLOWED_CONVERSATION_IDS` env gates which conversations the agent replies to (unset = safe/off, `*` = all). Gated by `conversationId` (stable per guest), not `reservationId` — Guesty stamps each message with the guest's latest booking, so a reservation id changes over time while the conversation id does not.
 - **No reservations feature** — this client does not sync/list reservations (the dashboard Reservations page, import-reservations, reservation-webhook, and list-reservations were removed). The agent still uses Guesty reservation IDs internally to identify the guest and reply.
 
 ## Database Tables (Supabase)

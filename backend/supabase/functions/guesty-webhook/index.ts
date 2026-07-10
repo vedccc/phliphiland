@@ -1,10 +1,12 @@
 // Receives Guesty `reservation.messageReceived` webhooks and forwards normalized
 // guest messages to the Trigger.dev main agent.
 //
-// SAFETY FILTER: ALLOWED_RESERVATION_UUIDS (comma-separated Guesty reservation ids).
+// SAFETY FILTER: ALLOWED_CONVERSATION_IDS (comma-separated Guesty conversation ids).
 //   - unset/empty  → ALL guest messages dropped (safe default, no AI replies).
 //   - "*"          → all pass (production).
-//   - list         → only listed reservation ids forwarded.
+//   - list         → only listed conversation ids forwarded.
+// Gated by conversationId (stable per guest) rather than reservationId, which Guesty
+// stamps with the guest's latest booking and therefore changes over time.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +40,7 @@ function normalize(payload: any) {
 }
 
 function parseAllowlist(): { allowAll: boolean; ids: Set<string> } {
-  const raw = (Deno.env.get("ALLOWED_RESERVATION_UUIDS") ?? "").trim();
+  const raw = (Deno.env.get("ALLOWED_CONVERSATION_IDS") ?? "").trim();
   if (raw === "*") return { allowAll: true, ids: new Set() };
   if (!raw) return { allowAll: false, ids: new Set() };
   return { allowAll: false, ids: new Set(raw.split(",").map((s) => s.trim()).filter(Boolean)) };
@@ -62,8 +64,8 @@ Deno.serve(async (req: Request) => {
   if (!normalized) return json({ status: "ignored", reason: "not_a_guest_message" }, 200);
 
   const { allowAll, ids } = parseAllowlist();
-  if (!allowAll && (ids.size === 0 || !ids.has(normalized.reservationId))) {
-    return json({ status: "filtered", reservation_id: normalized.reservationId }, 200);
+  if (!allowAll && (ids.size === 0 || !ids.has(normalized.conversationId))) {
+    return json({ status: "filtered", conversation_id: normalized.conversationId }, 200);
   }
 
   const payload = { payload: { event: "message.created", data: normalized, received_at: new Date().toISOString() } };
