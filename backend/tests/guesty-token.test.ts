@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { __resetTokenCache, getAccessToken } from "../backend/trigger/helpers/guesty.ts";
+import { __resetTokenCache, getAccessToken } from "../trigger/helpers/guesty.ts";
 
 function fakeTokenFetch(calls: { n: number }) {
   return async () =>

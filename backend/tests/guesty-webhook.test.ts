@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeMessageWebhook } from "../backend/trigger/helpers/guesty-webhook.ts";
+import { normalizeMessageWebhook } from "../trigger/helpers/guesty-webhook.ts";
 
 const guestEvent = {
   event: "reservation.messageReceived",

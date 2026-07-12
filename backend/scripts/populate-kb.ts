@@ -1,7 +1,7 @@
 import "dotenv/config";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
-import { listListings, getListingDetails } from "../backend/trigger/helpers/guesty.js";
+import { listListings, getListingDetails } from "../trigger/helpers/guesty.js";
 
 // ─── Config ──────────────────────────────────────────────────────────
 // Standalone bulk KB seeder. Pulls listings from Guesty, asks Claude to turn

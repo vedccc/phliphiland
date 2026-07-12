@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractInbound, dedupeToolUses } from "../backend/trigger/messaging/main-agent.ts";
+import { extractInbound, dedupeToolUses } from "../trigger/messaging/main-agent.ts";
 
 describe("extractInbound", () => {
   it("reads the normalized guesty payload", () => {

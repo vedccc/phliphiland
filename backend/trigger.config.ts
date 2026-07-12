@@ -20,7 +20,7 @@ const RUNTIME_ENV_VARS = [
 
 export default defineConfig({
   project: "proj_jroitttjzbwjhdzzisjv",
-  dirs: ["./backend/trigger"],
+  dirs: ["./trigger"],
   maxDuration: 300,
   retries: {
     enabledInDev: false,
