@@ -14,7 +14,7 @@ This is a Guesty-based clone of the prior Hospitable "Sonic AI / Iris de Mer" pr
 - **Webhook ingress:** Supabase Edge Function `guesty-webhook` — receives Guesty `reservation.messageReceived`, normalizes guest messages, forwards to Trigger.dev.
 - **AI:** Claude Sonnet 4.6 (`claude-sonnet-4-6`) via Anthropic API — 3 distinct AI calls (Coordinator, KB Answerer, Urgency Assessor)
 - **Database:** Supabase (Postgres + Auth + RLS) — project `ictumlksmzjenevtaqvp`
-- **External APIs:** Guesty Open API (`open-api.guesty.com/v1`, OAuth2 client-credentials), SMSAPI
+- **External APIs:** Guesty Open API (`open-api.guesty.com/v1`, OAuth2 client-credentials), Telnyx (SMS)
 - **Hosting:** Render (dashboard frontend)
 
 ## Guesty integration (PMS)
@@ -59,8 +59,8 @@ The agent composes and sends the final guest reply via Guesty. Exception: Sub-Wo
 ```
 GUESTY_CLIENT_ID
 GUESTY_CLIENT_SECRET
-SMSAPI_TOKEN
-SMSAPI_SENDER_NAME
+TELNYX_API_KEY
+TELNYX_FROM_NUMBER          # SMS sender number, defaults to +18333180776
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
