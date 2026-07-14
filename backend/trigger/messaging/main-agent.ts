@@ -6,6 +6,7 @@ import {
   getConversationThread,
   sendMessage,
   findConversationIdForReservation,
+  type GuestyMessage,
 } from "../helpers/guesty.js";
 import { getLocalHour } from "../helpers/time.js";
 import { sendSms } from "../helpers/sms.js";
@@ -31,12 +32,53 @@ interface InboundPayload {
   received_at: string;
 }
 
+// Inbound bodies can be HTML (e.g. the email channel). Strip tags + decode common
+// entities so the AI, the conversation log, and the dashboard all see clean text.
+export function stripHtml(input: string): string {
+  if (!input) return "";
+  if (!/[<&]/.test(input)) return input.trim();
+  let s = input
+    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+  s = s
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(parseInt(n, 10)));
+  return s.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Turn Guesty conversation posts into an oldest-first {role, content}[] history
+// for the coordinator. Posts arrive newest-first and identify the sender via
+// `sentBy` ("guest" | "host") — NOT `type`. Empty-content posts (attachment-only)
+// are dropped.
+export function postsToHistory(
+  posts: GuestyMessage[],
+): { role: string; content: string }[] {
+  return posts
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime(),
+    )
+    .map((m) => ({
+      role: m.sentBy === "guest" ? "guest" : "host",
+      content: stripHtml(m.plainTextBody || m.body || ""),
+    }))
+    .filter((m) => m.content.length > 0);
+}
+
 export function extractInbound(payload: { data: any }) {
   const d = payload?.data ?? {};
   return {
     reservationId: d.reservationId ?? d.reservation_id ?? "",
     conversationId: d.conversationId ?? d.conversation_id ?? "",
-    body: d.body ?? "",
+    body: stripHtml(d.body ?? ""),
     module: d.module ?? "email",
     guestName: d.guestName ?? d.sender?.first_name ?? "Guest",
   };
@@ -623,7 +665,11 @@ export const mainAgentWorkflow = task({
       const reservation = await getReservation(reservationId);
       listingId = reservation.listingId;
     } catch (e) {
+      // The Guesty client already retries transient 429/5xx/401 internally; if it
+      // still failed, re-throw so Trigger.dev retries the whole task instead of
+      // silently dropping the guest with no reply.
       logger.error("Failed to fetch reservation from Guesty", { error: String(e) });
+      throw e instanceof Error ? e : new Error(String(e));
     }
     if (!listingId) {
       logger.error("Could not resolve Guesty listingId", { reservationId });
@@ -665,10 +711,7 @@ export const mainAgentWorkflow = task({
     if (conversationId) {
       try {
         const thread = await getConversationThread(conversationId);
-        conversationHistory = thread.map((m) => ({
-          role: m.type === "fromGuest" || m.type === "fromThirdParty" ? "guest" : "host",
-          content: m.body || "",
-        }));
+        conversationHistory = postsToHistory(thread);
       } catch (e) {
         logger.warn("Failed to fetch conversation thread — using latest message only", {
           error: String(e),
