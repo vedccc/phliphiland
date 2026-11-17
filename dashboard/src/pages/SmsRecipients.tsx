@@ -6,6 +6,7 @@ interface Recipient {
   id: string; name: string; phone: string;
   receives_maintenance_low: boolean; receives_maintenance_medium: boolean; receives_maintenance_high: boolean;
   receives_kb_gaps: boolean; receives_checkin_checkout: boolean;
+  receives_kb_general: boolean; receives_kb_cleaning: boolean; receives_kb_maintenance: boolean;
   receives_extras: boolean;
   is_active: boolean;
 }
@@ -16,15 +17,26 @@ const maintenanceFields = [
   { key: "receives_maintenance_low" as const, label: "Low", color: "bg-green-500" },
 ];
 
+// "AI couldn't answer" texts. Each unanswered question is sorted into a category;
+// All gets every one, whatever the category.
+const kbFields = [
+  { key: "receives_kb_gaps" as const, label: "All", color: "bg-blue-500" },
+  { key: "receives_kb_general" as const, label: "General", color: "bg-sky-400" },
+  { key: "receives_kb_cleaning" as const, label: "Cleaning", color: "bg-teal-500" },
+  { key: "receives_kb_maintenance" as const, label: "Maintenance", color: "bg-indigo-500" },
+];
+const emptyForm = {
+  name: "", phone: "",
+  receives_maintenance_low: true, receives_maintenance_medium: true, receives_maintenance_high: true,
+  receives_kb_gaps: true, receives_kb_general: false, receives_kb_cleaning: false, receives_kb_maintenance: false,
+  receives_checkin_checkout: true,
+  receives_extras: false,
+};
+
 export default function SmsRecipients() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({
-    name: "", phone: "",
-    receives_maintenance_low: true, receives_maintenance_medium: true, receives_maintenance_high: true,
-    receives_kb_gaps: true, receives_checkin_checkout: true,
-    receives_extras: false,
-  });
+  const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<{ id: string; name: string; phone: string } | null>(null);
 
   const normalizePhone = (raw: string) => raw.replace(/[\s\-().+]/g, "");
@@ -53,7 +65,7 @@ export default function SmsRecipients() {
   const add = async () => {
     if (!canSave) return;
     await supabase.from("sms_recipients").insert({ ...form, phone: phoneDigits, is_active: true });
-    setForm({ name: "", phone: "", receives_maintenance_low: true, receives_maintenance_medium: true, receives_maintenance_high: true, receives_kb_gaps: true, receives_checkin_checkout: true, receives_extras: false });
+    setForm(emptyForm);
     setAdding(false);
     load();
   };
@@ -113,11 +125,19 @@ export default function SmsRecipients() {
               ))}
             </div>
           </div>
+          <div className="mb-4">
+            <span className="text-sm text-gray-400 font-medium uppercase">Questions the AI couldn't answer</span>
+            <div className="flex flex-wrap gap-5 mt-2">
+              {kbFields.map((f) => (
+                <label key={f.key} className="flex items-center gap-2 text-base text-gray-600">
+                  <input type="checkbox" checked={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })} className="rounded w-5 h-5" />
+                  {f.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-sm text-gray-400 mt-1">If nobody is ticked for Cleaning or Maintenance, those questions go to General.</p>
+          </div>
           <div className="grid grid-cols-2 gap-4 mb-5">
-            <label className="flex items-center gap-2 text-base text-gray-600">
-              <input type="checkbox" checked={form.receives_kb_gaps} onChange={(e) => setForm({ ...form, receives_kb_gaps: e.target.checked })} className="rounded w-5 h-5" />
-              KB gap escalations
-            </label>
             <label className="flex items-center gap-2 text-base text-gray-600">
               <input type="checkbox" checked={form.receives_checkin_checkout} onChange={(e) => setForm({ ...form, receives_checkin_checkout: e.target.checked })} className="rounded w-5 h-5" />
               Check-in / checkout requests
@@ -140,7 +160,7 @@ export default function SmsRecipients() {
               <th className="text-center px-3 py-4 font-medium" colSpan={3}>
                 <span>Maintenance</span>
               </th>
-              <th className="text-center px-5 py-4 font-medium">KB Gaps</th>
+              <th className="text-center px-3 py-4 font-medium" colSpan={4}>KB Gaps</th>
               <th className="text-center px-5 py-4 font-medium">Check-in/out</th>
               <th className="text-center px-5 py-4 font-medium">Extras</th>
               <th className="px-5 py-4 font-medium" />
@@ -150,7 +170,9 @@ export default function SmsRecipients() {
               {maintenanceFields.map((f) => (
                 <th key={f.key} className="px-3 py-2 font-medium text-center">{f.label}</th>
               ))}
-              <th />
+              {kbFields.map((f) => (
+                <th key={f.key} className="px-2 py-2 font-medium text-center">{f.label}</th>
+              ))}
               <th />
               <th />
               <th />
@@ -185,10 +207,12 @@ export default function SmsRecipients() {
                       className={`w-6 h-6 rounded ${r[f.key] ? f.color : "bg-gray-200"}`} />
                   </td>
                 ))}
-                <td className="px-5 py-4 text-center">
-                  <button onClick={() => toggle(r.id, "receives_kb_gaps", r.receives_kb_gaps)}
-                    className={`w-6 h-6 rounded ${r.receives_kb_gaps ? "bg-blue-500" : "bg-gray-200"}`} />
-                </td>
+                {kbFields.map((f) => (
+                  <td key={f.key} className="px-2 py-4 text-center">
+                    <button onClick={() => toggle(r.id, f.key, r[f.key])} title={`KB gaps: ${f.label}`}
+                      className={`w-6 h-6 rounded ${r[f.key] ? f.color : "bg-gray-200"}`} />
+                  </td>
+                ))}
                 <td className="px-5 py-4 text-center">
                   <button onClick={() => toggle(r.id, "receives_checkin_checkout", r.receives_checkin_checkout)}
                     className={`w-6 h-6 rounded ${r.receives_checkin_checkout ? "bg-purple-500" : "bg-gray-200"}`} />

@@ -29,3 +29,21 @@ export function normalizeMessageWebhook(payload: any): NormalizedMessage | null 
     platform: conv?.integration?.platform ?? msg.module ?? "",
   };
 }
+
+// Test mode (Agent Config switch, stored in agent_settings). The two test
+// conversations: Matt's (GY-VZ8WCHB3) and ours (GY-WbGZxkrE). Gated by
+// conversation id, which stays the same across a guest's bookings.
+export const TEST_CONVERSATION_IDS = ["6ab4e0843e05570011c490d7", "6a27b3f6ad3d6b00126f9b05"];
+
+export interface TestModeSettings {
+  testMode: boolean;
+  testConversationIds: string[];
+}
+
+// null = settings could not be read → fail closed (test mode, built-in list),
+// so the agent never goes live by accident.
+export function shouldForward(conversationId: string, settings: TestModeSettings | null): boolean {
+  const s = settings ?? { testMode: true, testConversationIds: TEST_CONVERSATION_IDS };
+  if (!s.testMode) return true;
+  return s.testConversationIds.includes(conversationId);
+}

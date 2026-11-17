@@ -1,13 +1,14 @@
 import { json, preflight } from "../_shared/cors.ts";
 import { getServiceClient } from "../_shared/supabase.ts";
 import { verifyToken } from "../_shared/tokens.ts";
+import { buildHostDecisionBody } from "../_shared/extras.ts";
 
 Deno.serve(async (req: Request) => {
   const pf = preflight(req);
   if (pf) return pf;
   if (req.method !== "POST") return json({ status: "method_not_allowed" }, 405);
 
-  const { token, decision } = await req.json().catch(() => ({}));
+  const { token, decision, delivery_at, delivery_local } = await req.json().catch(() => ({}));
   if (!token || !["approved", "declined"].includes(decision)) {
     return json({ status: "error", detail: "missing_or_invalid_fields" }, 400);
   }
@@ -30,15 +31,22 @@ Deno.serve(async (req: Request) => {
   }
 
   const now = new Date().toISOString();
+  // Persist the host's chosen delivery time (a UTC instant) on approval only;
+  // never overwrite it with null on a decline or when the UI didn't send one.
+  const deliveryAt = decision === "approved" && delivery_at ? delivery_at : null;
 
   await supabase
     .from("extras_approval_tokens")
-    .update({ status: decision, responded_at: now })
+    .update({ status: decision, responded_at: now, ...(deliveryAt ? { delivery_at: deliveryAt } : {}) })
     .eq("token", token);
 
   await supabase
     .from("extra_requests")
-    .update({ approval_status: decision, approved_by_phone: tokenRow.recipient_phone })
+    .update({
+      approval_status: decision,
+      approved_by_phone: tokenRow.recipient_phone,
+      ...(deliveryAt ? { delivery_at: deliveryAt } : {}),
+    })
     .eq("id", payload.id);
 
   const { data: extra } = await supabase
@@ -47,12 +55,19 @@ Deno.serve(async (req: Request) => {
     .eq("id", payload.id)
     .single();
 
-  if (extra) {
+  // Only re-fire the guest-reply workflow when there is a Guesty conversation to
+  // reply on. Voice-originated requests (phone calls) have no conversation — the
+  // decision is recorded above and the team fulfils it; there is no channel to
+  // message the guest back on, so skip the trigger to avoid a null-channel send.
+  if (extra && (extra as any).guesty_conversation_id) {
     const triggerSecret = Deno.env.get("TRIGGER_SECRET_KEY");
-    const syntheticBody =
-      decision === "approved"
-        ? `[host-decision] Host approved extra request: "${extra.item_requested}". Reply to the guest that we will deliver this for them.`
-        : `[host-decision] Host declined extra request: "${extra.item_requested}". Reply to the guest apologizing that this cannot be accommodated this time.`;
+    // Weave the host's picked delivery time into the guest reply; falls back to
+    // the original time-less wording when no (parseable) time was provided.
+    const syntheticBody = buildHostDecisionBody(
+      decision as "approved" | "declined",
+      extra.item_requested,
+      delivery_local,
+    );
 
     const triggerPayload = {
       payload: {

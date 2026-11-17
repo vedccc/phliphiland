@@ -1,10 +1,10 @@
 // Receives Guesty `reservation.messageReceived` webhooks and forwards normalized
 // guest messages to the Trigger.dev main agent.
 //
-// SAFETY FILTER: ALLOWED_CONVERSATION_IDS (comma-separated Guesty conversation ids).
-//   - unset/empty  → ALL guest messages dropped (safe default, no AI replies).
-//   - "*"          → all pass (production).
-//   - list         → only listed conversation ids forwarded.
+// SAFETY FILTER: test mode (Agent Config switch, table agent_settings).
+//   - test_mode on  → only agent_settings.test_conversation_ids are forwarded.
+//   - test_mode off → every guest message is forwarded.
+//   - settings unreadable → fail closed to the built-in test conversations.
 // Gated by conversationId (stable per guest) rather than reservationId, which Guesty
 // stamps with the guest's latest booking and therefore changes over time.
 
@@ -39,11 +39,32 @@ function normalize(payload: any) {
   };
 }
 
-function parseAllowlist(): { allowAll: boolean; ids: Set<string> } {
-  const raw = (Deno.env.get("ALLOWED_CONVERSATION_IDS") ?? "").trim();
-  if (raw === "*") return { allowAll: true, ids: new Set() };
-  if (!raw) return { allowAll: false, ids: new Set() };
-  return { allowAll: false, ids: new Set(raw.split(",").map((s) => s.trim()).filter(Boolean)) };
+// NOTE: kept in sync with shouldForward in backend/trigger/helpers/guesty-webhook.ts (unit-tested).
+const TEST_CONVERSATION_IDS = ["6ab4e0843e05570011c490d7", "6a27b3f6ad3d6b00126f9b05"];
+
+interface TestModeSettings { testMode: boolean; testConversationIds: string[] }
+
+async function readTestMode(): Promise<TestModeSettings | null> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(`${url}/rest/v1/agent_settings?select=test_mode,test_conversation_ids&limit=1`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return null;
+    const row = (await res.json())?.[0];
+    if (!row || typeof row.test_mode !== "boolean") return null;
+    return { testMode: row.test_mode, testConversationIds: row.test_conversation_ids ?? [] };
+  } catch {
+    return null;
+  }
+}
+
+function shouldForward(conversationId: string, settings: TestModeSettings | null): boolean {
+  const s = settings ?? { testMode: true, testConversationIds: TEST_CONVERSATION_IDS };
+  if (!s.testMode) return true;
+  return s.testConversationIds.includes(conversationId);
 }
 
 Deno.serve(async (req: Request) => {
@@ -63,9 +84,9 @@ Deno.serve(async (req: Request) => {
   const normalized = normalize(body);
   if (!normalized) return json({ status: "ignored", reason: "not_a_guest_message" }, 200);
 
-  const { allowAll, ids } = parseAllowlist();
-  if (!allowAll && (ids.size === 0 || !ids.has(normalized.conversationId))) {
-    return json({ status: "filtered", conversation_id: normalized.conversationId }, 200);
+  const settings = await readTestMode();
+  if (!shouldForward(normalized.conversationId, settings)) {
+    return json({ status: "filtered", conversation_id: normalized.conversationId, test_mode: settings?.testMode ?? true }, 200);
   }
 
   const payload = { payload: { event: "message.created", data: normalized, received_at: new Date().toISOString() } };

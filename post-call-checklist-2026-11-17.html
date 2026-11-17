@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post-call Action List</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/style.css">
+<style>
+  :root{
+    --bg:#ffffff; --fg:#0a0a0a; --muted:#6b6b6b; --border:#e5e5e5; --subtle:#fafafa; --card:#ffffff;
+    --blue:#2563eb; --amber:#d97706; --purple:#7c3aed; --teal:#0d9488; --red:#dc2626; --green:#16a34a;
+    --blue-bg:#eff6ff; --amber-bg:#fffbeb; --purple-bg:#f5f3ff; --teal-bg:#f0fdfa; --red-bg:#fef2f2; --green-bg:#f0fdf4;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0a0a0a; --fg:#f5f5f5; --muted:#a3a3a3; --border:#262626; --subtle:#141414; --card:#111111;
+      --blue:#60a5fa; --amber:#fbbf24; --purple:#a78bfa; --teal:#2dd4bf; --red:#f87171; --green:#4ade80;
+      --blue-bg:#0f1b33; --amber-bg:#2a1f08; --purple-bg:#1d1433; --teal-bg:#0a2623; --red-bg:#2a1010; --green-bg:#0c2215;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.6 "Geist Sans","Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+       -webkit-font-smoothing:antialiased}
+  code,.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  code{background:var(--subtle);border:1px solid var(--border);border-radius:4px;padding:1px 5px;word-break:break-word}
+
+  .top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border)}
+  .top-in{max-width:820px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:14px}
+  .top-t{font-weight:600;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-c{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .bar{height:3px;background:var(--border)}
+  .bar i{display:block;height:100%;width:0;background:var(--green);transition:width .2s}
+
+  .wrap{max-width:820px;margin:0 auto;padding:36px 16px 96px}
+  h1{font-size:26px;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:14px}
+  h2{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:42px 0 14px}
+  p{margin:0 0 10px}
+
+  .note{border:1px solid var(--border);border-left:3px solid var(--blue);background:var(--blue-bg);
+        border-radius:8px;padding:13px 16px;margin:0 0 14px;font-size:14px}
+  .note.amber{border-left-color:var(--amber);background:var(--amber-bg)}
+
+  .card{border:1px solid var(--border);border-radius:10px;background:var(--card);margin:0 0 14px;overflow:hidden}
+  .card-h{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--subtle)}
+  .card-h input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--green);flex:none;cursor:pointer}
+  .card-h label{font-weight:600;cursor:pointer;flex:1}
+  .tag{font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap;flex:none}
+  .t-blue{color:var(--blue);background:var(--blue-bg)} .t-purple{color:var(--purple);background:var(--purple-bg)}
+  .t-teal{color:var(--teal);background:var(--teal-bg)} .t-amber{color:var(--amber);background:var(--amber-bg)}
+  .card.done{opacity:.55} .card.done .card-h label{text-decoration:line-through}
+  .card-b{padding:14px 16px;font-size:14px}
+  .row{display:grid;grid-template-columns:64px 1fr;gap:10px;margin:0 0 10px}
+  .row:last-child{margin-bottom:0}
+  .k{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:2px}
+  .row ul{margin:0;padding-left:18px} .row li{margin:3px 0}
+  .ask{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px;color:var(--amber);font-size:13.5px}
+  .ask b{font-weight:600}
+
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:6px 0 0}
+  th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--subtle);font-weight:600}
+  .tw{overflow-x:auto}
+
+  .runs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .runs .lab{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+  .boxes{display:flex;gap:6px}
+  .boxes input{width:18px;height:18px;margin:0;accent-color:var(--green);cursor:pointer}
+  .test{border-top:1px solid var(--border);padding:11px 0}
+  .test:first-child{border-top:none;padding-top:0}
+  .test .s{font-weight:600}
+  .test .e{color:var(--muted);font-size:13.5px}
+
+  @media (max-width:560px){ .row{grid-template-columns:1fr;gap:2px} h1{font-size:22px} }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="top-in">
+    <div class="top-t">Phillip Island + Jerall · Post-call action list · 17 Nov 2026</div>
+    <div class="top-c" id="count">0 / 0 done</div>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+</div>
+
+<div class="wrap">
+  <h1>Post-call action list</h1>
+  <p class="sub">Phillip Island Host messaging AI, and Jerall's inquiries AI · from the 17 Nov 2026 call. For review before any development starts.</p>
+
+  <div class="note"><b>Phillip Island (sections 1–5):</b> a <b>Test mode</b> switch, “AI couldn't answer” texts routed by category,
+  and a guarantee that <b>inquiries never get an AI reply</b>. Sections 1–2 are decided. Section 3 has two open questions.<br>
+  <b>Jerall (section 6):</b> inquiries AI prompt changes for Gerald. On hold until his feedback is forwarded.</div>
+
+  <h2>1 · Test mode switch</h2>
+
+  <div class="card" data-k="tm-switch">
+    <div class="card-h"><input type="checkbox" id="c1"><label for="c1">Add a “Test mode” on/off switch to Agent Config</label><span class="tag t-blue">Dashboard</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        <ul>
+          <li><b>On:</b> the AI replies only to the two test reservations below. Every other guest message is logged and left alone.</li>
+          <li><b>Off:</b> the AI replies to every guest on every property.</li>
+          <li>The current state is shown clearly at the top of Agent Config, so nobody is unsure whether it's live.</li>
+        </ul>
+        <div class="tw"><table>
+          <tr><th>Test reservation</th><th>Booking</th><th>Guesty conversation</th></tr>
+          <tr><td>Matt (owner) · Test Property, 6 Possum Place</td><td>GY-VZ8WCHB3</td><td><code>6ab4e0843e05570011c490d7</code></td></tr>
+          <tr><td>Our test booking · Test Property</td><td>GY-WbGZxkrE</td><td><code>6a27b3f6ad3d6b00126f9b05</code></td></tr>
+        </table></div>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“Turning test mode on basically means that it only replies to my reservation and his reservation. If we turn test mode off, it replies to everyone.”</div></div>
+      <div class="row"><div class="k">How</div><div>
+        <ul>
+          <li>Today this list lives in a server setting (<code>ALLOWED_CONVERSATION_IDS</code>) that only a developer can change from the command line. It moves into the database, and the webhook reads it on every message, so the switch takes effect on the next guest message with no redeploy.</li>
+          <li>Test reservations are matched by Guesty <b>conversation</b>, not booking. A guest keeps the same conversation across bookings, so Matt stays a tester even after GY-VZ8WCHB3 ends.</li>
+          <li>If the setting can't be read, the AI stays in test mode. It never goes live by accident.</li>
+          <li>Right now the system is effectively in test mode: only these two conversations get replies.</li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">Decided</div><div>
+        <ul>
+          <li>Turning test mode <b>off</b> asks first: “The AI will now reply to every guest on every property. Continue?”</li>
+          <li><b>Only admins</b> can turn it on or off. Other users see the current state but no switch.</li>
+          <li>The test reservations are <b>always these two</b>. They're shown under the switch but can't be edited from the dashboard.</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <h2>2 · “AI couldn't answer” texts by category</h2>
+
+  <div class="card" data-k="kb-classify">
+    <div class="card-h"><input type="checkbox" id="c2"><label for="c2">Sort each unanswered question into General, Cleaning or Maintenance</label><span class="tag t-purple">AI step</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        When the AI can't answer and escalates, a second, small AI step reads the guest's question and picks one category:
+        <div class="tw"><table>
+          <tr><th>Category</th><th>Examples</th><th>Goes to</th></tr>
+          <tr><td><b>Maintenance</b></td><td>“How do I use the boiler?”, heater, TV, pool, something broken. A question about using something counts, not only a fault.</td><td>Maintenance person</td></tr>
+          <tr><td><b>Cleaning</b></td><td>Cleanliness, linen, bins, cleaning supplies, “where's the vacuum?”</td><td>Cleaner</td></tr>
+          <tr><td><b>General</b></td><td>Everything else: local tips, booking questions, complaints, refunds</td><td>General recipients</td></tr>
+        </table></div>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“When there is a cleaning-related question that couldn't be answered, that should be SMS to the cleaner. And if it's a maintenance-related question … it should be SMS to the maintenance person.”</div></div>
+      <div class="row"><div class="k">How</div><div>
+        <ul>
+          <li>Runs only when the AI escalates, so normal answers aren't slowed down.</li>
+          <li>The text names the category, for example <code>⚠️ AI couldn't answer (Maintenance) at Test Property: “How do I turn on the boiler?”</code></li>
+          <li>The category is saved with the question under Unanswered Questions, so you can see the split later.</li>
+          <li>If the AI step fails or isn't sure, the question is treated as General.</li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">Decided</div><div>If nobody is ticked for a category (say, no cleaner set up yet), the text goes to the General recipients instead, so no escalation is ever silent.</div></div>
+    </div>
+  </div>
+
+  <div class="card" data-k="kb-recipients">
+    <div class="card-h"><input type="checkbox" id="c3"><label for="c3">Replace the single “KB gaps” tick in SMS Recipients with four options</label><span class="tag t-blue">Dashboard</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        Each person can be ticked for any mix of:
+        <ul>
+          <li><b>All</b>: every unanswered question, whatever the category</li>
+          <li><b>General</b></li>
+          <li><b>Cleaning</b></li>
+          <li><b>Maintenance</b></li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“Enable for each person that they either get all knowledge-based questions or just the general ones or the maintenance-related ones or the cleaning-related ones.”</div></div>
+      <div class="row"><div class="k">How</div><div>
+        <ul>
+          <li>Everyone who has “KB gaps” ticked today starts on <b>All</b>, so nobody stops getting texts the day this goes live. You then narrow each person down.</li>
+          <li>Today that's both recipients: Matt and our test number.</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <h2>3 · Never answer inquiries</h2>
+
+  <div class="card" data-k="inq-filter">
+    <div class="card-h"><input type="checkbox" id="c6"><label for="c6">The AI only replies to guests with a confirmed booking. Inquiries get no reply.</label><span class="tag t-purple">Agent</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        Before the AI does anything, it checks the Guesty status of the reservation the message belongs to:
+        <div class="tw"><table>
+          <tr><th>Guesty status</th><th>What the AI does</th></tr>
+          <tr><td><b>Confirmed</b>, checked in, checked out</td><td>Replies as it does today</td></tr>
+          <tr><td><b>Inquiry</b>, declined, expired</td><td>Nothing. Logged as “inquiry not answered”. Your team answers in Guesty.</td></tr>
+          <tr><td>Request to book (awaiting approval), cancelled</td><td>See questions below</td></tr>
+        </table></div>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“It's important that inquiries aren't getting answered … sometimes with the way Guesty works, we might accidentally be answering an inquiry.”</div></div>
+      <div class="row"><div class="k">Checked</div><div>
+        <ul>
+          <li><b>No inquiry is being answered right now</b>, but only because test mode blocks everyone except the two test conversations.</li>
+          <li>There is <b>no inquiry filter in the code today</b>. The AI already fetches the reservation from Guesty, status included, but never looks at the status. Once test mode is turned off, an inquiry would get a reply.</li>
+          <li>So this must ship <b>with or before</b> test mode goes off.</li>
+          <li><b>Decided:</b> it applies with test mode <b>on as well as off</b>. Even a test conversation gets no reply if the message belongs to an inquiry.</li>
+          <li><b>Built</b> (not deployed). Both test bookings show as “confirmed” in Guesty, so they still get replies.</li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">How</div><div>
+        <ul>
+          <li>An allow-list, not a block-list: only the statuses in the first row get replies. If Guesty ever adds a new status, it gets silence, not an answer.</li>
+          <li>It catches the tricky case you mentioned: a past guest sending a new inquiry. Guesty files that message under the new inquiry, not the old stay, so it's skipped.</li>
+          <li>No extra Guesty call and no extra cost. The AI already fetches the status today, and the check runs before any AI step.</li>
+        </ul>
+      </div></div>
+      <div class="ask"><b>Question 1:</b> Should a <b>request to book</b> (guest has asked to book, you haven't approved yet) get AI replies? I recommend <b>no</b>. It's still a sales conversation, like an inquiry.</div>
+      <div class="ask"><b>Question 2:</b> Should a guest whose booking was <b>cancelled</b> get AI replies? I recommend <b>no</b>. Questions about refunds and rebooking are yours to handle.</div>
+    </div>
+  </div>
+
+  <h2>4 · Release</h2>
+
+  <div class="card" data-k="release">
+    <div class="card-h"><input type="checkbox" id="c4"><label for="c4">Ship all three Phillip Island changes together</label><span class="tag t-teal">Deploy</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        <ul>
+          <li>Database: the test-mode setting and the four recipient options, with today's “KB gaps” ticks copied to All.</li>
+          <li>The Guesty webhook, the AI agent on Trigger.dev (including the inquiry filter), and the dashboard on Render.</li>
+          <li>Test mode stays <b>on</b> after release. Only you turn it off.</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <h2>5 · Testing sign-off</h2>
+
+  <div class="card" data-k="tests">
+    <div class="card-h"><input type="checkbox" id="c5"><label for="c5">Run each check 5 times before handing over</label><span class="tag t-amber">Test</span></div>
+    <div class="card-b">
+      <div class="test"><div class="s">Test mode on · Matt's reservation</div><div class="e">Guest message from GY-VZ8WCHB3 → the AI replies.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t1"></div></div></div>
+      <div class="test"><div class="s">Test mode on · any other conversation</div><div class="e">The webhook drops it: no reply, no text.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t2"></div></div></div>
+      <div class="test"><div class="s">Switch takes effect immediately</div><div class="e">Flip the switch → the next message follows the new setting, with no redeploy.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t3"></div></div></div>
+      <div class="test"><div class="s">Maintenance question</div><div class="e">“How do I turn on the boiler?” (not in the KB) → text only to Maintenance and All recipients.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t4"></div></div></div>
+      <div class="test"><div class="s">Cleaning question</div><div class="e">“Where is the vacuum cleaner?” → text only to Cleaning and All recipients.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t5"></div></div></div>
+      <div class="test"><div class="s">General question</div><div class="e">“Is there a sauna nearby?” → text only to General and All recipients.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t6"></div></div></div>
+      <div class="test"><div class="s">Inquiry gets no reply</div><div class="e">An inquiry on a test property (no booking made) → no reply to the guest, and the run shows “not a confirmed booking”.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t7"></div></div></div>
+      <div class="test"><div class="s">Confirmed guest still answered</div><div class="e">“What's the wifi password?” from GY-VZ8WCHB3 → normal reply, so the filter doesn't block real guests.</div>
+        <div class="runs"><span class="lab">RUNS ×5</span><div class="boxes" data-k="t8"></div></div></div>
+    </div>
+  </div>
+
+  <h2>6 · Jerall · inquiries AI (Gerald)</h2>
+
+  <div class="note amber"><b>On hold:</b> Gerald's written feedback is being forwarded separately. These two changes come from the call.
+  The final prompt wording waits for his notes, so both changes are made in one pass.</div>
+
+  <div class="card" data-k="jr-opening">
+    <div class="card-h"><input type="checkbox" id="c7"><label for="c7">Open with “How can I help?” and answer the question, not with price or dates</label><span class="tag t-purple">Prompt</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        <ul>
+          <li>The first reply answers what the person actually asked. If they only said hello, it asks how it can help.</li>
+          <li>It asks for dates and gets a quote only once they're asking about availability or price.</li>
+          <li>It still negotiates exactly as it does now, but only after they ask.</li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“It shouldn't start with that, because otherwise people will immediately assume a discount … we can just open with ‘Hey, how can I help?’ or answer the questions.”</div></div>
+      <div class="row"><div class="k">Checked</div><div>
+        <ul>
+          <li>Discounts are already locked: the AI can't see the discount range until the guest asks for a better price. That has been in place since 4 Aug.</li>
+          <li>What still feels like a sales opener is step 1 of the prompt. It tells the AI to ask for nights and dates straight away, then quote a price. That's the part to change.</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card" data-k="jr-kb">
+    <div class="card-h"><input type="checkbox" id="c8"><label for="c8">Answer questions from every property's knowledge base, e.g. “Which ones have a hot tub?”</label><span class="tag t-purple">Agent</span></div>
+    <div class="card-b">
+      <div class="row"><div class="k">What</div><div>
+        <ul>
+          <li>The inquiries AI can answer questions about the property they're asking about, from its knowledge base.</li>
+          <li>It can also search <b>all</b> properties' knowledge bases: “Do you have another property with a hot tub?” → “Yes, Property C has one.”</li>
+        </ul>
+      </div></div>
+      <div class="row"><div class="k">Why</div><div>“Not only from the knowledge base of the property they're inquiring about, but from all knowledge bases.”</div></div>
+      <div class="row"><div class="k">How</div><div>
+        <ul>
+          <li>Today the inquiries AI has no knowledge base at all. Its prompt says “you do not have the house manual”. Only the booked-guest AI reads it.</li>
+          <li>Add a search tool over all properties' knowledge bases. It returns guest-facing facts only, never door codes, wifi passwords or check-in instructions, because the person hasn't booked.</li>
+          <li>If the answer isn't in any knowledge base, the AI says it will check with the team. It never guesses.</li>
+        </ul>
+      </div></div>
+      <div class="ask"><b>Question 3:</b> When it suggests another property (“Property C has a hot tub”), should it first check that property is free on their dates? I recommend <b>yes</b> when it already knows their dates. Otherwise it names the property and asks for dates.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var NS = 'pih-postcall-2026-11-17:';
+  function get(k){ try { return localStorage.getItem(NS + k) === '1'; } catch (e) { return false; } }
+  function put(k, v){ try { localStorage.setItem(NS + k, v ? '1' : '0'); } catch (e) {} }
+
+  document.querySelectorAll('.boxes').forEach(function (b) {
+    for (var i = 1; i <= 5; i++) {
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.setAttribute('aria-label', 'Run ' + i);
+      cb.dataset.k = b.dataset.k + '-' + i;
+      b.appendChild(cb);
+    }
+  });
+
+  var cards = document.querySelectorAll('.card[data-k]');
+  function update() {
+    var n = 0;
+    cards.forEach(function (c) {
+      var on = c.querySelector('.card-h input').checked;
+      c.classList.toggle('done', on); if (on) n++;
+    });
+    document.getElementById('count').textContent = n + ' / ' + cards.length + ' done';
+    document.getElementById('bar').style.width = (cards.length ? n / cards.length * 100 : 0) + '%';
+  }
+  cards.forEach(function (c) {
+    var cb = c.querySelector('.card-h input');
+    cb.checked = get(c.dataset.k);
+    cb.addEventListener('change', function () { put(c.dataset.k, cb.checked); update(); });
+  });
+  document.querySelectorAll('.boxes input').forEach(function (cb) {
+    cb.checked = get(cb.dataset.k);
+    cb.addEventListener('change', function () { put(cb.dataset.k, cb.checked); });
+  });
+  update();
+})();
+</script>
+</body>
+</html>

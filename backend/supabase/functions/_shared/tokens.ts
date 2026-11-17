@@ -67,3 +67,20 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
   if (payload.exp < Math.floor(Date.now() / 1000)) return null;
   return payload;
 }
+
+// Mint an approval token — mirrors signApprovalToken in
+// backend/trigger/helpers/tokens.ts. Signing normally happens in Node, but the
+// voice-agent extra-request path has no Node step, so the edge function signs
+// here to send the host a one-tap approve/decline link (verified by verifyToken).
+export async function signApprovalToken(
+  extraRequestId: string,
+  ttlSeconds = 15 * 60,
+): Promise<string> {
+  const json = JSON.stringify({
+    kind: "extras",
+    id: extraRequestId,
+    exp: Math.floor(Date.now() / 1000) + ttlSeconds,
+  });
+  const sig = await hmac(json);
+  return `${b64urlEncode(enc.encode(json))}.${b64urlEncode(sig)}`;
+}

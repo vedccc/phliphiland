@@ -39,3 +39,31 @@ describe("normalizeMessageWebhook", () => {
     expect(normalizeMessageWebhook(tp)?.conversationId).toBe("conv_1");
   });
 });
+
+import { shouldForward, TEST_CONVERSATION_IDS } from "../trigger/helpers/guesty-webhook.ts";
+
+describe("shouldForward (test mode gate)", () => {
+  const settings = (testMode: boolean, ids = ["conv_test"]) => ({ testMode, testConversationIds: ids });
+
+  it("test mode on: forwards only listed conversations", () => {
+    expect(shouldForward("conv_test", settings(true))).toBe(true);
+    expect(shouldForward("conv_guest", settings(true))).toBe(false);
+  });
+
+  it("test mode off: forwards every conversation", () => {
+    expect(shouldForward("conv_guest", settings(false))).toBe(true);
+  });
+
+  it("test mode on with an empty list forwards nothing", () => {
+    expect(shouldForward("conv_test", settings(true, []))).toBe(false);
+  });
+
+  it("unreadable settings fail closed to the built-in test conversations", () => {
+    expect(shouldForward(TEST_CONVERSATION_IDS[0], null)).toBe(true);
+    expect(shouldForward("conv_guest", null)).toBe(false);
+  });
+
+  it("knows the two test conversations (Matt + ours)", () => {
+    expect(TEST_CONVERSATION_IDS).toEqual(["6ab4e0843e05570011c490d7", "6a27b3f6ad3d6b00126f9b05"]);
+  });
+});

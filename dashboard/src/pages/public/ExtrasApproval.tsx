@@ -50,7 +50,10 @@ export default function ExtrasApproval() {
     if (!token) return;
     setSubmitting(true);
     const body: Record<string, unknown> = { token, decision };
-    if (deliveryIso) body.delivery_at = new Date(deliveryIso).toISOString();
+    if (deliveryIso) {
+      body.delivery_at = new Date(deliveryIso).toISOString(); // UTC instant, for storage
+      body.delivery_local = deliveryIso; // naive wall-clock the host picked, for the guest message
+    }
     const { status } = await callEdge("extras-respond", body);
     if (status === 200) setResult(decision);
     else setError("Could not record response. Try again.");

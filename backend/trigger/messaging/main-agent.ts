@@ -11,6 +11,14 @@ import {
 import { getLocalHour } from "../helpers/time.js";
 import { sendSms } from "../helpers/sms.js";
 import { signApprovalToken } from "../helpers/tokens.js";
+import {
+  parseKbCategory,
+  selectKbGapRecipients,
+  kbGapSmsBody,
+  type KbCategory,
+  type KbGapRecipient,
+} from "../helpers/kb-gap-routing.js";
+import { isAnswerableReservation } from "../helpers/reservation-status.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -532,6 +540,29 @@ Respond with ONLY "YES" or "NO". Nothing else.`,
 
 // ─── Sub-Workflow D: Human Escalation (HARD STOP) ────────────────────
 
+// Sorts an escalated question into General / Cleaning / Maintenance so the
+// alert reaches the right person. Any failure falls back to general.
+async function classifyKbGap(guestQuestion: string, reason: string): Promise<KbCategory> {
+  try {
+    const anthropic = new Anthropic();
+    const res = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 10,
+      system: `You route a guest question that a holiday-rental AI could not answer to the right staff member. Answer with exactly one word: maintenance, cleaning or general.
+- maintenance: anything about using, operating or fixing the property's equipment or fittings, even if nothing is broken (boiler, hot water, heater, air conditioning, TV, wifi router, appliances, pool, spa, locks, lights, plumbing, electrics).
+- cleaning: cleanliness, linen, towels, beds being made, rubbish and bins, cleaning supplies, where cleaning equipment is kept.
+- general: everything else (local area, bookings, payments, refunds, complaints, policies, directions).`,
+      messages: [{ role: "user", content: `Guest question: "${guestQuestion}"
+Why it was escalated: ${reason}` }],
+    });
+    const block = res.content.find((b) => b.type === "text");
+    return parseKbCategory(block && "text" in block ? block.text : "");
+  } catch (e) {
+    logger.error("KB gap classification failed — treating as general", { error: String(e) });
+    return "general";
+  }
+}
+
 async function subWorkflowD(
   reason: string,
   guestQuestion: string,
@@ -539,11 +570,15 @@ async function subWorkflowD(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  const category = await classifyKbGap(guestQuestion, reason);
+  logger.info("KB gap classified", { category });
+
   // D1: Log KB gap
   await supabase.from("kb_gap_log").insert({
     property_id: ctx.propertyId,
     guest_question: guestQuestion,
     reservation_uuid: ctx.reservationUuid,
+    category,
   });
 
   // D2: Set 8hr cooldown
@@ -558,23 +593,23 @@ async function subWorkflowD(
     reservation_uuid: ctx.reservationUuid,
   });
 
-  // D3: SMS alerts
-  const { data: recipients } = await supabase
+  // D3: SMS alerts — All + this category's recipients (General if nobody has the category)
+  const { data: candidates } = await supabase
     .from("sms_recipients")
     .select("*")
-    .eq("receives_kb_gaps", true)
+    .or("receives_kb_gaps.eq.true,receives_kb_general.eq.true,receives_kb_cleaning.eq.true,receives_kb_maintenance.eq.true")
     .eq("is_active", true);
 
-  if (recipients && recipients.length > 0) {
-    const smsBody = `⚠️ AI escalated at ${ctx.propertyName}: "${guestQuestion}". 8hr cooldown active. Please respond manually.`;
-    for (const r of recipients) {
-      try {
-        await sendSms(r.phone, smsBody);
-      } catch (e) {
-        logger.error("SMS send failed", { recipient: r.name, error: String(e) });
-      }
+  const recipients = selectKbGapRecipients((candidates ?? []) as KbGapRecipient[], category);
+  const smsBody = kbGapSmsBody(ctx.propertyName, guestQuestion, category);
+  for (const r of recipients) {
+    try {
+      await sendSms(r.phone, smsBody);
+    } catch (e) {
+      logger.error("SMS send failed", { recipient: r.name, error: String(e) });
     }
   }
+  logger.info("KB gap alert sent", { category, recipients: recipients.map((r) => r.name) });
 
   logger.warn("Sub-Workflow D: HARD STOP — no reply to guest", {
     propertyId: ctx.propertyId,
@@ -661,9 +696,11 @@ export const mainAgentWorkflow = task({
 
     // Step 2: Resolve the Guesty listing for this reservation
     let listingId: string | undefined;
+    let reservationStatus: string | undefined;
     try {
       const reservation = await getReservation(reservationId);
       listingId = reservation.listingId;
+      reservationStatus = reservation.status;
     } catch (e) {
       // The Guesty client already retries transient 429/5xx/401 internally; if it
       // still failed, re-throw so Trigger.dev retries the whole task instead of
@@ -687,6 +724,21 @@ export const mainAgentWorkflow = task({
     if (propError || !property) {
       logger.error("Property not found in Supabase", { listingId, error: propError?.message });
       return { status: "error", reason: "property_not_synced" };
+    }
+
+    // Step 3b: Only confirmed bookings get replies. Inquiries, requests to book and
+    // cancellations are left for the team — in test mode and live mode alike.
+    if (!isAnswerableReservation(reservationStatus)) {
+      logger.info("Reservation is not a confirmed booking — not replying", {
+        reservationId,
+        reservationStatus,
+      });
+      await supabase.from("agent_activity_log").insert({
+        property_id: property.id,
+        reservation_uuid: reservationId,
+        action_type: "inquiry_not_answered",
+      });
+      return { status: "skipped", reason: "not_confirmed_booking", reservation_status: reservationStatus ?? null };
     }
 
     // Step 4: Cooldown check

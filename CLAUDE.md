@@ -14,7 +14,7 @@ This is a Guesty-based clone of the prior Hospitable "Sonic AI / Iris de Mer" pr
 - **Webhook ingress:** Supabase Edge Function `guesty-webhook` — receives Guesty `reservation.messageReceived`, normalizes guest messages, forwards to Trigger.dev.
 - **AI:** Claude Sonnet 4.6 (`claude-sonnet-4-6`) via Anthropic API — 3 distinct AI calls (Coordinator, KB Answerer, Urgency Assessor)
 - **Database:** Supabase (Postgres + Auth + RLS) — project `ictumlksmzjenevtaqvp`
-- **External APIs:** Guesty Open API (`open-api.guesty.com/v1`, OAuth2 client-credentials), Telnyx (SMS)
+- **External APIs:** Guesty Open API (`open-api.guesty.com/v1`, OAuth2 client-credentials), Twilio (SMS; Telnyx kept as fallback until cutover)
 - **Hosting:** Render (dashboard frontend)
 
 ## Guesty integration (PMS)
@@ -33,7 +33,7 @@ The system uses a **Coordinator → Sub-Workflow** pattern inside a single Trigg
    - **B** (`raise_maintenance_ticket`) — Calls Urgency Assessor AI (#3), creates ticket, sends SMS alerts.
    - **C** (`process_extra_request`) — Checks `allowed_extras`; if allowed, records pending + sends host an SMS approval link; host decision re-fires the agent (carrying `guesty_conversation_id`/`guesty_channel_module`) to reply to the guest.
    - **E** (`handle_checkin_checkout`) — Notifies the cleaning team by SMS.
-   - **D** (`escalate_to_human`) — **HARD STOP.** Logs KB gap, sets 8hr cooldown, sends SMS. No reply to guest.
+   - **D** (`escalate_to_human`) — **HARD STOP.** Classifies the question (General / Cleaning / Maintenance, AI step), logs KB gap with its category, sets 8hr cooldown, texts KB-gap recipients ticked for All or that category (General if nobody has the category). No reply to guest.
 
 The agent composes and sends the final guest reply via Guesty. Exception: Sub-Workflow D terminates without replying.
 
@@ -41,7 +41,7 @@ The agent composes and sends the final guest reply via Guesty. Exception: Sub-Wo
 
 - **Sub-Workflow D = no reply to guest.** Never guess/placeholder when escalating. Silence.
 - **Cooldowns are per-property**, not per-guest. When active, ALL messages for that property are ignored.
-- **Guest messages only** — the `guesty-webhook` ingress drops non-`fromGuest` messages; the `ALLOWED_CONVERSATION_IDS` env gates which conversations the agent replies to (unset = safe/off, `*` = all). Gated by `conversationId` (stable per guest), not `reservationId` — Guesty stamps each message with the guest's latest booking, so a reservation id changes over time while the conversation id does not.
+- **Guest messages only** — the `guesty-webhook` ingress drops non-`fromGuest` messages; **Test mode** (Agent Config switch, table `agent_settings`, super admins only) gates which conversations the agent replies to: on = only `test_conversation_ids` (Matt's GY-VZ8WCHB3 + our GY-WbGZxkrE), off = everyone. Unreadable settings fail closed to test mode. The old `ALLOWED_CONVERSATION_IDS` env is no longer read. Gated by `conversationId` (stable per guest), not `reservationId` — Guesty stamps each message with the guest's latest booking, so a reservation id changes over time while the conversation id does not.
 - **No reservations feature** — this client does not sync/list reservations (the dashboard Reservations page, import-reservations, reservation-webhook, and list-reservations were removed). The agent still uses Guesty reservation IDs internally to identify the guest and reply.
 
 ## Database Tables (Supabase)
@@ -59,8 +59,11 @@ The agent composes and sends the final guest reply via Guesty. Exception: Sub-Wo
 ```
 GUESTY_CLIENT_ID
 GUESTY_CLIENT_SECRET
-TELNYX_API_KEY
-TELNYX_FROM_NUMBER          # SMS sender number, defaults to +18333180776
+TWILIO_ACCOUNT_SID          # SMS via Twilio once set (with TWILIO_AUTH_TOKEN, or TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET)
+TWILIO_AUTH_TOKEN
+TWILIO_FROM_NUMBER         # SMS sender, defaults to +61485026523
+TELNYX_API_KEY              # legacy fallback until Twilio is live
+TELNYX_FROM_NUMBER          # legacy sender, defaults to +18333180776
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY

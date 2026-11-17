@@ -3,6 +3,15 @@ project_id = "ictumlksmzjenevtaqvp"
 [functions.guesty-webhook]
 verify_jwt = false
 
+# Public marketing website (website/) reads listings from Guesty through this.
+# No auth: it only returns public-safe listing data. See functions/public-listings.
+[functions.public-listings]
+verify_jwt = false
+
+# Same website, one listing's availability calendar. See functions/public-availability.
+[functions.public-availability]
+verify_jwt = false
+
 [functions.checklist-resolve]
 verify_jwt = false
 
@@ -13,4 +22,37 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.extras-respond]
+verify_jwt = false
+
+# Voice-agent edge functions — called by the LiveKit/Python agent with the
+# Supabase anon key (livekit-lookup) or an API_SECRET bearer (the rest), not a
+# Supabase user JWT, so JWT verification is disabled and each does its own check.
+[functions.agent-livekit-lookup]
+verify_jwt = false
+
+[functions.agent-property-lookup]
+verify_jwt = false
+
+[functions.agent-maintenance]
+verify_jwt = false
+
+[functions.agent-extra-request]
+verify_jwt = false
+
+[functions.agent-checkin-checkout]
+verify_jwt = false
+
+[functions.agent-extend-stay]
+verify_jwt = false
+
+[functions.agent-send-media]
+verify_jwt = false
+
+[functions.agent-call-end]
+verify_jwt = false
+
+[functions.owner-lead]
+verify_jwt = false
+
+[functions.book-request]
 verify_jwt = false
