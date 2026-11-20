@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, Clock, Bot } from "lucide-react";
+import { DAY_KEYS, DEFAULT_SCHEDULE, isWithinSchedule, type DayKey, type WeeklySchedule } from "../lib/schedule";
 
 interface Recipient {
   id: string; name: string; phone: string;
@@ -9,6 +10,8 @@ interface Recipient {
   receives_kb_general: boolean; receives_kb_cleaning: boolean; receives_kb_maintenance: boolean;
   receives_extras: boolean;
   is_active: boolean;
+  is_ai_agent: boolean;
+  schedule: WeeklySchedule | null;
 }
 
 const maintenanceFields = [
@@ -31,13 +34,85 @@ const emptyForm = {
   receives_kb_gaps: true, receives_kb_general: false, receives_kb_cleaning: false, receives_kb_maintenance: false,
   receives_checkin_checkout: true,
   receives_extras: false,
+  is_ai_agent: false,
+  schedule: DEFAULT_SCHEDULE as WeeklySchedule,
 };
+
+// ─── AI agent number: days + hours (Melbourne time) ──────────────────
+const DAY_SHORT: Record<DayKey, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+
+function fmt12(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+}
+
+function withDefaults(raw: unknown): WeeklySchedule {
+  const src = (raw && typeof raw === "object" ? raw : {}) as Partial<WeeklySchedule>;
+  const out = {} as WeeklySchedule;
+  for (const d of DAY_KEYS) out[d] = { ...DEFAULT_SCHEDULE[d], ...(src[d] ?? {}) };
+  return out;
+}
+
+function scheduleSummary(s: WeeklySchedule): string {
+  const on = DAY_KEYS.filter((d) => s[d].on);
+  if (!on.length) return "No days set";
+  const same = on.every((d) => s[d].start === s[on[0]].start && s[d].end === s[on[0]].end);
+  if (!same) return on.map((d) => `${DAY_SHORT[d]} ${fmt12(s[d].start)}–${fmt12(s[d].end)}`).join(", ");
+  const w = s[on[0]];
+  const hours = w.start === w.end ? "all day" : `${fmt12(w.start)}–${fmt12(w.end)}`;
+  return `${on.map((d) => DAY_SHORT[d]).join(", ")} · ${hours}`;
+}
+
+function scheduleProblem(s: WeeklySchedule): string {
+  const on = DAY_KEYS.filter((d) => s[d].on);
+  if (!on.length) return "Tick at least one day.";
+  const missing = on.filter((d) => !s[d].start || !s[d].end);
+  return missing.length ? `Set a start and end time for ${missing.map((d) => DAY_SHORT[d]).join(", ")}.` : "";
+}
+
+function ScheduleEditor({ value, onChange }: { value: WeeklySchedule; onChange: (s: WeeklySchedule) => void }) {
+  const setDay = (d: DayKey, patch: Partial<WeeklySchedule[DayKey]>) => onChange({ ...value, [d]: { ...value[d], ...patch } });
+  return (
+    <div>
+      <table className="text-sm">
+        <tbody>
+          {DAY_KEYS.map((d) => (
+            <tr key={d}>
+              <td className="py-1 pr-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={value[d].on} onChange={(e) => setDay(d, { on: e.target.checked })} className="rounded w-4 h-4" />
+                  <span className={`w-10 ${value[d].on ? "text-gray-900 font-medium" : "text-gray-400"}`}>{DAY_SHORT[d]}</span>
+                </label>
+              </td>
+              <td className="py-1">
+                {value[d].on ? (
+                  <div className="flex items-center gap-2">
+                    <input type="time" value={value[d].start} aria-label={`${DAY_SHORT[d]} from`} onChange={(e) => setDay(d, { start: e.target.value })}
+                      className="px-2 py-1 border border-gray-200 rounded-md" />
+                    <span className="text-gray-400">to</span>
+                    <input type="time" value={value[d].end} aria-label={`${DAY_SHORT[d]} to`} onChange={(e) => setDay(d, { end: e.target.value })}
+                      className="px-2 py-1 border border-gray-200 rounded-md" />
+                  </div>
+                ) : <span className="text-gray-400">No texts</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-xs text-gray-400 mt-2">Melbourne time. An end earlier than the start runs overnight (e.g. 5:00 pm to 9:00 am); the same start and end means all day.</p>
+    </div>
+  );
+}
 
 export default function SmsRecipients() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<{ id: string; name: string; phone: string } | null>(null);
+  const [hours, setHours] = useState<{ id: string; isAgent: boolean; schedule: WeeklySchedule } | null>(null);
+  const [hoursError, setHoursError] = useState("");
+  const now = new Date();
 
   const normalizePhone = (raw: string) => raw.replace(/[\s\-().+]/g, "");
   const hasLeadingZeroAfterCC = (digits: string) => {
@@ -52,7 +127,8 @@ export default function SmsRecipients() {
   const phoneDigits = normalizePhone(form.phone);
   const phoneValid = form.phone === "" || isPhoneValid(form.phone);
   const phoneLooksLikeLeadingZero = form.phone !== "" && /^\d{10,15}$/.test(phoneDigits) && hasLeadingZeroAfterCC(phoneDigits);
-  const canSave = form.name.trim() !== "" && isPhoneValid(form.phone);
+  const formScheduleProblem = form.is_ai_agent ? scheduleProblem(form.schedule) : "";
+  const canSave = form.name.trim() !== "" && isPhoneValid(form.phone) && !formScheduleProblem;
 
   const editPhoneDigits = editing ? normalizePhone(editing.phone) : "";
   const editPhoneValid = editing ? (editing.phone === "" || isPhoneValid(editing.phone)) : true;
@@ -64,7 +140,10 @@ export default function SmsRecipients() {
 
   const add = async () => {
     if (!canSave) return;
-    await supabase.from("sms_recipients").insert({ ...form, phone: phoneDigits, is_active: true });
+    await supabase.from("sms_recipients").insert({
+      ...form, phone: phoneDigits, is_active: true,
+      schedule: form.is_ai_agent ? form.schedule : null,
+    });
     setForm(emptyForm);
     setAdding(false);
     load();
@@ -85,6 +164,23 @@ export default function SmsRecipients() {
     if (!editing || !canSaveEdit) return;
     await supabase.from("sms_recipients").update({ name: editing.name, phone: normalizePhone(editing.phone) }).eq("id", editing.id);
     setEditing(null);
+    load();
+  };
+
+  const openHours = (r: Recipient) => {
+    setHoursError("");
+    setHours({ id: r.id, isAgent: r.is_ai_agent, schedule: withDefaults(r.schedule) });
+  };
+
+  const saveHours = async () => {
+    if (!hours) return;
+    const problem = hours.isAgent ? scheduleProblem(hours.schedule) : "";
+    if (problem) { setHoursError(problem); return; }
+    const { error } = await supabase.from("sms_recipients")
+      .update({ is_ai_agent: hours.isAgent, schedule: hours.isAgent ? hours.schedule : null })
+      .eq("id", hours.id);
+    if (error) { setHoursError("Couldn't save the hours."); return; }
+    setHours(null);
     load();
   };
 
@@ -137,6 +233,19 @@ export default function SmsRecipients() {
             </div>
             <p className="text-sm text-gray-400 mt-1">If nobody is ticked for Cleaning or Maintenance, those questions go to General.</p>
           </div>
+          <div className="mb-5 rounded-lg border border-gray-200 p-4">
+            <label className="flex items-center gap-2 text-base text-gray-700 font-medium">
+              <input type="checkbox" checked={form.is_ai_agent} onChange={(e) => setForm({ ...form, is_ai_agent: e.target.checked })} className="rounded w-5 h-5" />
+              <Bot size={18} className="text-violet-500" /> AI agent number
+            </label>
+            <p className="text-sm text-gray-400 mt-1 ml-7">Gets a copy of the texts ticked above, but only on the days and times you set. Outside them its copy is skipped; everyone else still gets theirs.</p>
+            {form.is_ai_agent && (
+              <div className="mt-3 ml-7">
+                <ScheduleEditor value={form.schedule} onChange={(schedule) => setForm({ ...form, schedule })} />
+                {formScheduleProblem && <p className="text-red-500 text-sm mt-1">{formScheduleProblem}</p>}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4 mb-5">
             <label className="flex items-center gap-2 text-base text-gray-600">
               <input type="checkbox" checked={form.receives_checkin_checkout} onChange={(e) => setForm({ ...form, receives_checkin_checkout: e.target.checked })} className="rounded w-5 h-5" />
@@ -180,7 +289,8 @@ export default function SmsRecipients() {
           </thead>
           <tbody>
             {recipients.map((r) => (
-              <tr key={r.id} className="border-b border-gray-50">
+              <Fragment key={r.id}>
+              <tr className="border-b border-gray-50">
                 {editing?.id === r.id ? (
                   <>
                     <td className="px-5 py-4">
@@ -197,7 +307,18 @@ export default function SmsRecipients() {
                   </>
                 ) : (
                   <>
-                    <td className="px-5 py-4 text-gray-900">{r.name}</td>
+                    <td className="px-5 py-4 text-gray-900">
+                      {r.name}
+                      {r.is_ai_agent && r.schedule && (
+                        <div className="mt-1 text-xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 px-2 py-0.5 font-medium"><Bot size={12} /> AI agent</span>
+                          <span className={`ml-2 ${isWithinSchedule(withDefaults(r.schedule), now) ? "text-emerald-600" : "text-gray-400"}`}>
+                            {isWithinSchedule(withDefaults(r.schedule), now) ? "On duty now" : "Off duty now"}
+                          </span>
+                          <div className="text-gray-400 mt-0.5">{scheduleSummary(withDefaults(r.schedule))}</div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-5 py-4 text-gray-500 font-mono text-sm">{r.phone}</td>
                   </>
                 )}
@@ -230,6 +351,8 @@ export default function SmsRecipients() {
                       </>
                     ) : (
                       <>
+                        <button onClick={() => (hours?.id === r.id ? setHours(null) : openHours(r))} title="AI agent hours"
+                          className={`p-2 ${r.is_ai_agent ? "text-violet-500 hover:text-violet-700" : "text-gray-300 hover:text-gray-500"}`}><Clock size={20} /></button>
                         <button onClick={() => setEditing({ id: r.id, name: r.name, phone: r.phone })} className="p-2 text-gray-300 hover:text-gray-500"><Pencil size={20} /></button>
                         <button onClick={() => remove(r.id)} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={20} /></button>
                       </>
@@ -237,6 +360,26 @@ export default function SmsRecipients() {
                   </div>
                 </td>
               </tr>
+              {hours?.id === r.id && (
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <td colSpan={12} className="px-5 py-4">
+                    <label className="flex items-center gap-2 text-base text-gray-700 font-medium">
+                      <input type="checkbox" checked={hours.isAgent} onChange={(e) => setHours({ ...hours, isAgent: e.target.checked })} className="rounded w-5 h-5" />
+                      <Bot size={18} className="text-violet-500" /> {r.name} is an AI agent number
+                    </label>
+                    <p className="text-sm text-gray-400 mt-1 ml-7">
+                      {hours.isAgent ? "Gets a copy of its ticked texts only on these days and times." : "Not an AI agent: gets its ticked texts at any time."}
+                    </p>
+                    {hours.isAgent && <div className="mt-3 ml-7"><ScheduleEditor value={hours.schedule} onChange={(schedule) => setHours({ ...hours, schedule })} /></div>}
+                    <div className="mt-3 ml-7 flex gap-2">
+                      <button onClick={saveHours} className="px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Save</button>
+                      <button onClick={() => setHours(null)} className="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg">Cancel</button>
+                    </div>
+                    {hoursError && <p className="text-red-500 text-sm mt-2 ml-7">{hoursError}</p>}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

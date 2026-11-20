@@ -2,6 +2,7 @@
 // Mirrors backend/trigger/helpers/sms.ts (Twilio, with Telnyx as fallback), plus a
 // recipient lookup that matches the text agent's sms_recipients routing.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { onDuty, type WeeklySchedule } from "./schedule.ts";
 
 // Normalize to strict E.164 (`+<countrycode><number>`) — Twilio and Telnyx both
 // require it. SMSAPI tolerated bare digits ("917724958567") and separators; they
@@ -80,16 +81,17 @@ export async function sendSms(to: string, message: string): Promise<void> {
 }
 
 // Active recipients who have `flag` set (e.g. "receives_maintenance_high").
+// AI agent numbers are included only inside their scheduled hours (onDuty).
 export async function getRecipients(
   supabase: SupabaseClient,
   flag: string,
 ): Promise<{ name: string; phone: string }[]> {
   const { data } = await supabase
     .from("sms_recipients")
-    .select("name, phone")
+    .select("name, phone, schedule")
     .eq("is_active", true)
     .eq(flag, true);
-  return (data ?? []) as { name: string; phone: string }[];
+  return onDuty((data ?? []) as { name: string; phone: string; schedule: WeeklySchedule | null }[]);
 }
 
 // Best-effort fan-out — one guest/host should never fail a call because an SMS

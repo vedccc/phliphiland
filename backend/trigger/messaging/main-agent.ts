@@ -19,6 +19,7 @@ import {
   type KbGapRecipient,
 } from "../helpers/kb-gap-routing.js";
 import { isAnswerableReservation } from "../helpers/reservation-status.js";
+import { onDuty } from "../helpers/schedule.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -398,11 +399,13 @@ Respond with ONLY the urgency level name (e.g. "high"). No explanation, no other
 
   // B4: SMS alerts — filter by urgency level
   const urgencyColumn = `receives_maintenance_${urgency}` as const;
-  const { data: recipients } = await supabase
+  const { data: allRecipients } = await supabase
     .from("sms_recipients")
     .select("*")
     .eq(urgencyColumn, true)
     .eq("is_active", true);
+  // AI agent numbers only get a copy inside their scheduled hours.
+  const recipients = onDuty(allRecipients ?? []);
 
   let smsSent = 0;
   if (recipients && recipients.length > 0) {
@@ -494,11 +497,13 @@ Respond with ONLY "YES" or "NO". Nothing else.`,
     throw new Error(`extra_requests insert failed: ${insertError?.message}`);
   }
 
-  const { data: recipients } = await supabase
+  const { data: allRecipients } = await supabase
     .from("sms_recipients")
     .select("*")
     .eq("receives_extras", true)
     .eq("is_active", true);
+  // AI agent numbers only get a copy inside their scheduled hours.
+  const recipients = onDuty(allRecipients ?? []);
 
   if (!recipients || recipients.length === 0) {
     logger.warn("No SMS recipients with receives_extras=true; auto-approving with default delivery estimate");
@@ -600,7 +605,8 @@ async function subWorkflowD(
     .or("receives_kb_gaps.eq.true,receives_kb_general.eq.true,receives_kb_cleaning.eq.true,receives_kb_maintenance.eq.true")
     .eq("is_active", true);
 
-  const recipients = selectKbGapRecipients((candidates ?? []) as KbGapRecipient[], category);
+  // Off-duty AI agent numbers drop out first, so the General fallback still covers them.
+  const recipients = selectKbGapRecipients(onDuty((candidates ?? []) as KbGapRecipient[]), category);
   const smsBody = kbGapSmsBody(ctx.propertyName, guestQuestion, category);
   for (const r of recipients) {
     try {
@@ -629,11 +635,13 @@ async function subWorkflowE(
   const supabase = getSupabaseClient();
 
   // E1: Fetch SMS recipients tagged for check-in/checkout notifications
-  const { data: recipients } = await supabase
+  const { data: allRecipients } = await supabase
     .from("sms_recipients")
     .select("*")
     .eq("receives_checkin_checkout", true)
     .eq("is_active", true);
+  // AI agent numbers only get a copy inside their scheduled hours.
+  const recipients = onDuty(allRecipients ?? []);
 
   // E2: Send SMS to each recipient
   let smsSent = 0;

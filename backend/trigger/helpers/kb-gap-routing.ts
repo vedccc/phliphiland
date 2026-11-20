@@ -1,6 +1,7 @@
 // Routing for "AI couldn't answer" texts (Sub-Workflow D). Each escalated
 // question is classified General / Cleaning / Maintenance, and texted to the
 // recipients ticked for that category plus those ticked for All.
+import type { WeeklySchedule } from "./schedule.js";
 
 export type KbCategory = "general" | "cleaning" | "maintenance";
 
@@ -18,6 +19,7 @@ export interface KbGapRecipient {
   receives_kb_general: boolean;
   receives_kb_cleaning: boolean;
   receives_kb_maintenance: boolean;
+  schedule?: WeeklySchedule | null; // AI agent numbers only (see onDuty)
 }
 
 // The classifier answers with one word; anything else is treated as general.
