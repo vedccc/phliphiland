@@ -5,8 +5,12 @@
 //   - test_mode on  → only agent_settings.test_conversation_ids are forwarded.
 //   - test_mode off → every guest message is forwarded.
 //   - settings unreadable → fail closed to the built-in test conversations.
+// ACTIVE HOURS: when schedule_enabled, messages outside the weekly schedule
+//   (Melbourne time, _shared/schedule.ts) are dropped so the team handles them.
 // Gated by conversationId (stable per guest) rather than reservationId, which Guesty
 // stamps with the guest's latest booking and therefore changes over time.
+
+import { isWithinSchedule, type WeeklySchedule } from "../_shared/schedule.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,20 +46,30 @@ function normalize(payload: any) {
 // NOTE: kept in sync with shouldForward in backend/trigger/helpers/guesty-webhook.ts (unit-tested).
 const TEST_CONVERSATION_IDS = ["6ab4e0843e05570011c490d7", "6a27b3f6ad3d6b00126f9b05"];
 
-interface TestModeSettings { testMode: boolean; testConversationIds: string[] }
+interface TestModeSettings {
+  testMode: boolean;
+  testConversationIds: string[];
+  scheduleEnabled: boolean;
+  schedule: WeeklySchedule | null;
+}
 
 async function readTestMode(): Promise<TestModeSettings | null> {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) return null;
   try {
-    const res = await fetch(`${url}/rest/v1/agent_settings?select=test_mode,test_conversation_ids&limit=1`, {
+    const res = await fetch(`${url}/rest/v1/agent_settings?select=test_mode,test_conversation_ids,schedule_enabled,schedule&limit=1`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     if (!res.ok) return null;
     const row = (await res.json())?.[0];
     if (!row || typeof row.test_mode !== "boolean") return null;
-    return { testMode: row.test_mode, testConversationIds: row.test_conversation_ids ?? [] };
+    return {
+      testMode: row.test_mode,
+      testConversationIds: row.test_conversation_ids ?? [],
+      scheduleEnabled: row.schedule_enabled === true,
+      schedule: row.schedule ?? null,
+    };
   } catch {
     return null;
   }
@@ -87,6 +101,13 @@ Deno.serve(async (req: Request) => {
   const settings = await readTestMode();
   if (!shouldForward(normalized.conversationId, settings)) {
     return json({ status: "filtered", conversation_id: normalized.conversationId, test_mode: settings?.testMode ?? true }, 200);
+  }
+
+  // Active hours: outside the weekly schedule (Melbourne time) the AI stays silent
+  // and the team handles the message. Unreadable settings skip this gate — test
+  // mode above has already failed closed.
+  if (settings?.scheduleEnabled && !isWithinSchedule(settings.schedule as WeeklySchedule, new Date())) {
+    return json({ status: "outside_active_hours", conversation_id: normalized.conversationId }, 200);
   }
 
   const payload = { payload: { event: "message.created", data: normalized, received_at: new Date().toISOString() } };

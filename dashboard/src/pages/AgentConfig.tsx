@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { Pencil, Check, X } from "lucide-react";
+import { DAY_KEYS, DEFAULT_SCHEDULE, isWithinSchedule, melbourneNow, type DayKey, type WeeklySchedule } from "../lib/schedule";
 
 interface UrgencyCategory { id: string; level: string; description: string; examples: string; response_time: string; }
 
@@ -28,6 +29,7 @@ export default function AgentConfig() {
       <p className="text-base text-gray-400 mb-6">Configure how the AI agent classifies urgency and handles extra requests.</p>
 
       <TestModePanel />
+      <ActiveHoursPanel />
 
       <div className="flex gap-1.5 mb-8 border-b border-gray-200 pb-px">
         {tabs.map((t) => (
@@ -302,6 +304,168 @@ function TestModePanel() {
         </ul>
       )}
       {!isSuperAdmin && testMode !== null && <p className="text-sm text-gray-400 mt-3">Only admins can change test mode.</p>}
+      {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+    </div>
+  );
+}
+
+// ─── Active hours ────────────────────────────────────────────────────
+// The AI replies only inside this weekly schedule (Melbourne time). Enforced by
+// the guesty-webhook; this panel edits agent_settings.schedule / schedule_enabled.
+
+const DAY_LABEL: Record<DayKey, string> = {
+  mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday",
+};
+
+function fmtTime(minutes: number): string {
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+}
+
+function withDefaults(raw: unknown): WeeklySchedule {
+  const src = (raw && typeof raw === "object" ? raw : {}) as Partial<WeeklySchedule>;
+  const out = {} as WeeklySchedule;
+  for (const d of DAY_KEYS) out[d] = { ...DEFAULT_SCHEDULE[d], ...(src[d] ?? {}) };
+  return out;
+}
+
+function ActiveHoursPanel() {
+  const { isSuperAdmin, user } = useAuth();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [schedule, setSchedule] = useState<WeeklySchedule>(DEFAULT_SCHEDULE);
+  const [savedSchedule, setSavedSchedule] = useState<WeeklySchedule>(DEFAULT_SCHEDULE);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const load = () => {
+    supabase.from("agent_settings").select("schedule_enabled, schedule").limit(1).single()
+      .then(({ data, error }) => {
+        if (error || !data) { setError("Couldn't load active hours."); return; }
+        const s = withDefaults(data.schedule);
+        setEnabled(data.schedule_enabled === true);
+        setSchedule(s);
+        setSavedSchedule(s);
+      });
+  };
+  useEffect(load, []);
+
+  const dirty = JSON.stringify(schedule) !== JSON.stringify(savedSchedule);
+  const canEdit = isSuperAdmin && enabled !== null;
+
+  const setDay = (d: DayKey, patch: Partial<WeeklySchedule[DayKey]>) =>
+    setSchedule((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
+
+  const save = async (nextEnabled: boolean) => {
+    if (saving) return;
+    const missing = DAY_KEYS.filter((d) => schedule[d].on && (!schedule[d].start || !schedule[d].end));
+    if (missing.length) { setError(`Set a start and end time for ${missing.map((d) => DAY_LABEL[d]).join(", ")}.`); return; }
+    if (nextEnabled && !DAY_KEYS.some((d) => schedule[d].on)
+      && !window.confirm("No days are ticked, so the AI will never reply. Continue?")) return;
+    setSaving(true);
+    setError("");
+    const { data, error } = await supabase.from("agent_settings")
+      .update({ schedule_enabled: nextEnabled, schedule, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+      .eq("id", true).select("schedule_enabled, schedule");
+    setSaving(false);
+    if (error || !data?.length) { setError("Couldn't save. Only admins can change active hours."); load(); return; }
+    const s = withDefaults(data[0].schedule);
+    setEnabled(data[0].schedule_enabled === true);
+    setSchedule(s);
+    setSavedSchedule(s);
+  };
+
+  const mel = melbourneNow(now);
+  const replyingNow = enabled === false || isWithinSchedule(savedSchedule, now);
+  const on = enabled === true;
+
+  return (
+    <div className={`mb-8 rounded-xl border p-5 ${on ? "border-sky-300 bg-sky-50" : "border-gray-200 bg-gray-50"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-lg font-semibold text-gray-900">
+            Active hours: {enabled === null ? "…" : on ? "On" : "Off"}
+          </div>
+          <p className="text-base text-gray-600 mt-1">
+            {enabled === null ? "Loading…" : on
+              ? "The AI replies only during the hours below (Melbourne time). Messages outside them are left for your team."
+              : "The AI replies at any time, day or night. Turn this on to limit it to the hours below."}
+          </p>
+        </div>
+        {canEdit && (
+          <button onClick={() => save(!on)} disabled={saving} role="switch" aria-checked={on} aria-label="Active hours"
+            className={`relative shrink-0 w-14 h-8 rounded-full transition-colors ${on ? "bg-sky-500" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}>
+            <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-6" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {enabled !== null && (
+        <p className="mt-3 text-sm">
+          <span className="text-gray-500">Melbourne time now: {DAY_LABEL[mel.day]} {fmtTime(mel.minutes)} · </span>
+          <span className={`font-medium ${replyingNow ? "text-emerald-700" : "text-gray-700"}`}>
+            {replyingNow ? "The AI is replying" : "The AI is not replying (outside active hours)"}
+          </span>
+        </p>
+      )}
+
+      {enabled !== null && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full max-w-xl text-sm">
+            <tbody>
+              {DAY_KEYS.map((d) => {
+                const w = schedule[d];
+                return (
+                  <tr key={d} className="border-t border-gray-200 first:border-t-0">
+                    <td className="py-2 pr-4 w-40">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={w.on} disabled={!canEdit}
+                          onChange={(e) => setDay(d, { on: e.target.checked })} className="w-4 h-4 accent-sky-600" />
+                        <span className={w.on ? "text-gray-900 font-medium" : "text-gray-400"}>{DAY_LABEL[d]}</span>
+                      </label>
+                    </td>
+                    <td className="py-2">
+                      {w.on ? (
+                        <div className="flex items-center gap-2">
+                          <input type="time" value={w.start} disabled={!canEdit} aria-label={`${DAY_LABEL[d]} start`}
+                            onChange={(e) => setDay(d, { start: e.target.value })}
+                            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm disabled:bg-gray-100" />
+                          <span className="text-gray-400">to</span>
+                          <input type="time" value={w.end} disabled={!canEdit} aria-label={`${DAY_LABEL[d]} end`}
+                            onChange={(e) => setDay(d, { end: e.target.value })}
+                            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm disabled:bg-gray-100" />
+                        </div>
+                      ) : <span className="text-gray-400">AI off all day</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-gray-500">
+            An end time earlier than the start runs overnight (e.g. 5:00 pm to 9:00 am). The same start and end means all day.
+          </p>
+        </div>
+      )}
+
+      {canEdit && dirty && (
+        <div className="mt-4 flex gap-2">
+          <button onClick={() => save(on)} disabled={saving}
+            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium disabled:opacity-50">
+            {saving ? "Saving…" : "Save hours"}
+          </button>
+          <button onClick={() => { setSchedule(savedSchedule); setError(""); }} disabled={saving}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700">
+            Cancel
+          </button>
+        </div>
+      )}
+      {!isSuperAdmin && enabled !== null && <p className="text-sm text-gray-400 mt-3">Only admins can change active hours.</p>}
       {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
     </div>
   );
