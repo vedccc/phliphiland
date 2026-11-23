@@ -19,7 +19,7 @@ export interface KbGapRecipient {
   receives_kb_general: boolean;
   receives_kb_cleaning: boolean;
   receives_kb_maintenance: boolean;
-  schedule?: WeeklySchedule | null; // AI agent numbers only (see onDuty)
+  schedule?: WeeklySchedule | null; // null = any time (see onDuty)
 }
 
 // The classifier answers with one word; anything else is treated as general.

@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     .from("sms_recipients")
     .select("phone, schedule")
     .eq("is_active", true);
-  // AI agent numbers only get a copy inside their scheduled hours.
+  // Recipients with a schedule only get texts inside their days and times.
   const recipients = onDuty((allRecipients ?? []) as { phone: string; schedule: WeeklySchedule | null }[]);
 
   const dashboardHost = Deno.env.get("DASHBOARD_HOST") ?? "https://phillip-island-host.onrender.com";

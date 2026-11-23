@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Plus, Trash2, Pencil, Check, X, Clock, Bot } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, Clock } from "lucide-react";
 import { DAY_KEYS, DEFAULT_SCHEDULE, isWithinSchedule, type DayKey, type WeeklySchedule } from "../lib/schedule";
 
 interface Recipient {
@@ -10,8 +10,7 @@ interface Recipient {
   receives_kb_general: boolean; receives_kb_cleaning: boolean; receives_kb_maintenance: boolean;
   receives_extras: boolean;
   is_active: boolean;
-  is_ai_agent: boolean;
-  schedule: WeeklySchedule | null;
+  schedule: WeeklySchedule | null; // null = texts at any time
 }
 
 const maintenanceFields = [
@@ -34,11 +33,12 @@ const emptyForm = {
   receives_kb_gaps: true, receives_kb_general: false, receives_kb_cleaning: false, receives_kb_maintenance: false,
   receives_checkin_checkout: true,
   receives_extras: false,
-  is_ai_agent: false,
+  scheduled: false,
   schedule: DEFAULT_SCHEDULE as WeeklySchedule,
 };
 
-// ─── AI agent number: days + hours (Melbourne time) ──────────────────
+// ─── Days and times (Melbourne time) ─────────────────────────────────
+// A recipient with a schedule only gets texts inside it; without one, at any time.
 const DAY_SHORT: Record<DayKey, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 
 function fmt12(hhmm: string): string {
@@ -105,12 +105,38 @@ function ScheduleEditor({ value, onChange }: { value: WeeklySchedule; onChange: 
   );
 }
 
+// "Any time" or "Only on these days and times" + the editor.
+function WhenToText({ scheduled, schedule, onChange, name }: {
+  scheduled: boolean; schedule: WeeklySchedule; name: string;
+  onChange: (v: { scheduled: boolean; schedule: WeeklySchedule }) => void;
+}) {
+  return (
+    <div>
+      <div className="flex flex-wrap gap-5">
+        <label className="flex items-center gap-2 text-base text-gray-600">
+          <input type="radio" name={name} checked={!scheduled} onChange={() => onChange({ scheduled: false, schedule })} className="w-4 h-4" />
+          Any time
+        </label>
+        <label className="flex items-center gap-2 text-base text-gray-600">
+          <input type="radio" name={name} checked={scheduled} onChange={() => onChange({ scheduled: true, schedule })} className="w-4 h-4" />
+          Only on these days and times
+        </label>
+      </div>
+      {scheduled && (
+        <div className="mt-3">
+          <ScheduleEditor value={schedule} onChange={(s) => onChange({ scheduled: true, schedule: s })} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SmsRecipients() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<{ id: string; name: string; phone: string } | null>(null);
-  const [hours, setHours] = useState<{ id: string; isAgent: boolean; schedule: WeeklySchedule } | null>(null);
+  const [hours, setHours] = useState<{ id: string; scheduled: boolean; schedule: WeeklySchedule } | null>(null);
   const [hoursError, setHoursError] = useState("");
   const now = new Date();
 
@@ -127,7 +153,7 @@ export default function SmsRecipients() {
   const phoneDigits = normalizePhone(form.phone);
   const phoneValid = form.phone === "" || isPhoneValid(form.phone);
   const phoneLooksLikeLeadingZero = form.phone !== "" && /^\d{10,15}$/.test(phoneDigits) && hasLeadingZeroAfterCC(phoneDigits);
-  const formScheduleProblem = form.is_ai_agent ? scheduleProblem(form.schedule) : "";
+  const formScheduleProblem = form.scheduled ? scheduleProblem(form.schedule) : "";
   const canSave = form.name.trim() !== "" && isPhoneValid(form.phone) && !formScheduleProblem;
 
   const editPhoneDigits = editing ? normalizePhone(editing.phone) : "";
@@ -140,9 +166,10 @@ export default function SmsRecipients() {
 
   const add = async () => {
     if (!canSave) return;
+    const { scheduled, schedule, ...ticks } = form;
     await supabase.from("sms_recipients").insert({
-      ...form, phone: phoneDigits, is_active: true,
-      schedule: form.is_ai_agent ? form.schedule : null,
+      ...ticks, phone: phoneDigits, is_active: true,
+      schedule: scheduled ? schedule : null,
     });
     setForm(emptyForm);
     setAdding(false);
@@ -169,17 +196,17 @@ export default function SmsRecipients() {
 
   const openHours = (r: Recipient) => {
     setHoursError("");
-    setHours({ id: r.id, isAgent: r.is_ai_agent, schedule: withDefaults(r.schedule) });
+    setHours({ id: r.id, scheduled: !!r.schedule, schedule: withDefaults(r.schedule) });
   };
 
   const saveHours = async () => {
     if (!hours) return;
-    const problem = hours.isAgent ? scheduleProblem(hours.schedule) : "";
+    const problem = hours.scheduled ? scheduleProblem(hours.schedule) : "";
     if (problem) { setHoursError(problem); return; }
     const { error } = await supabase.from("sms_recipients")
-      .update({ is_ai_agent: hours.isAgent, schedule: hours.isAgent ? hours.schedule : null })
+      .update({ schedule: hours.scheduled ? hours.schedule : null })
       .eq("id", hours.id);
-    if (error) { setHoursError("Couldn't save the hours."); return; }
+    if (error) { setHoursError("Couldn't save the days and times."); return; }
     setHours(null);
     load();
   };
@@ -233,19 +260,6 @@ export default function SmsRecipients() {
             </div>
             <p className="text-sm text-gray-400 mt-1">If nobody is ticked for Cleaning or Maintenance, those questions go to General.</p>
           </div>
-          <div className="mb-5 rounded-lg border border-gray-200 p-4">
-            <label className="flex items-center gap-2 text-base text-gray-700 font-medium">
-              <input type="checkbox" checked={form.is_ai_agent} onChange={(e) => setForm({ ...form, is_ai_agent: e.target.checked })} className="rounded w-5 h-5" />
-              <Bot size={18} className="text-violet-500" /> AI agent number
-            </label>
-            <p className="text-sm text-gray-400 mt-1 ml-7">Gets a copy of the texts ticked above, but only on the days and times you set. Outside them its copy is skipped; everyone else still gets theirs.</p>
-            {form.is_ai_agent && (
-              <div className="mt-3 ml-7">
-                <ScheduleEditor value={form.schedule} onChange={(schedule) => setForm({ ...form, schedule })} />
-                {formScheduleProblem && <p className="text-red-500 text-sm mt-1">{formScheduleProblem}</p>}
-              </div>
-            )}
-          </div>
           <div className="grid grid-cols-2 gap-4 mb-5">
             <label className="flex items-center gap-2 text-base text-gray-600">
               <input type="checkbox" checked={form.receives_checkin_checkout} onChange={(e) => setForm({ ...form, receives_checkin_checkout: e.target.checked })} className="rounded w-5 h-5" />
@@ -255,6 +269,14 @@ export default function SmsRecipients() {
               <input type="checkbox" checked={form.receives_extras} onChange={(e) => setForm({ ...form, receives_extras: e.target.checked })} className="rounded w-5 h-5" />
               Extras approval requests
             </label>
+          </div>
+          <div className="mb-5">
+            <span className="text-sm text-gray-400 font-medium uppercase">When to text</span>
+            <div className="mt-2">
+              <WhenToText name="add-when" scheduled={form.scheduled} schedule={form.schedule}
+                onChange={(v) => setForm({ ...form, ...v })} />
+              {formScheduleProblem && <p className="text-red-500 text-sm mt-1">{formScheduleProblem}</p>}
+            </div>
           </div>
           <button onClick={add} disabled={!canSave} className={`px-5 py-2 text-base font-medium rounded-lg ${canSave ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>Save</button>
         </div>
@@ -309,11 +331,10 @@ export default function SmsRecipients() {
                   <>
                     <td className="px-5 py-4 text-gray-900">
                       {r.name}
-                      {r.is_ai_agent && r.schedule && (
+                      {r.schedule && (
                         <div className="mt-1 text-xs">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 px-2 py-0.5 font-medium"><Bot size={12} /> AI agent</span>
-                          <span className={`ml-2 ${isWithinSchedule(withDefaults(r.schedule), now) ? "text-emerald-600" : "text-gray-400"}`}>
-                            {isWithinSchedule(withDefaults(r.schedule), now) ? "On duty now" : "Off duty now"}
+                          <span className={isWithinSchedule(withDefaults(r.schedule), now) ? "text-emerald-600" : "text-gray-400"}>
+                            {isWithinSchedule(withDefaults(r.schedule), now) ? "Getting texts now" : "Not getting texts now"}
                           </span>
                           <div className="text-gray-400 mt-0.5">{scheduleSummary(withDefaults(r.schedule))}</div>
                         </div>
@@ -351,8 +372,8 @@ export default function SmsRecipients() {
                       </>
                     ) : (
                       <>
-                        <button onClick={() => (hours?.id === r.id ? setHours(null) : openHours(r))} title="AI agent hours"
-                          className={`p-2 ${r.is_ai_agent ? "text-violet-500 hover:text-violet-700" : "text-gray-300 hover:text-gray-500"}`}><Clock size={20} /></button>
+                        <button onClick={() => (hours?.id === r.id ? setHours(null) : openHours(r))} title="Days and times"
+                          className={`p-2 ${r.schedule ? "text-sky-600 hover:text-sky-800" : "text-gray-300 hover:text-gray-500"}`}><Clock size={20} /></button>
                         <button onClick={() => setEditing({ id: r.id, name: r.name, phone: r.phone })} className="p-2 text-gray-300 hover:text-gray-500"><Pencil size={20} /></button>
                         <button onClick={() => remove(r.id)} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={20} /></button>
                       </>
@@ -363,19 +384,16 @@ export default function SmsRecipients() {
               {hours?.id === r.id && (
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <td colSpan={12} className="px-5 py-4">
-                    <label className="flex items-center gap-2 text-base text-gray-700 font-medium">
-                      <input type="checkbox" checked={hours.isAgent} onChange={(e) => setHours({ ...hours, isAgent: e.target.checked })} className="rounded w-5 h-5" />
-                      <Bot size={18} className="text-violet-500" /> {r.name} is an AI agent number
-                    </label>
-                    <p className="text-sm text-gray-400 mt-1 ml-7">
-                      {hours.isAgent ? "Gets a copy of its ticked texts only on these days and times." : "Not an AI agent: gets its ticked texts at any time."}
-                    </p>
-                    {hours.isAgent && <div className="mt-3 ml-7"><ScheduleEditor value={hours.schedule} onChange={(schedule) => setHours({ ...hours, schedule })} /></div>}
-                    <div className="mt-3 ml-7 flex gap-2">
+                    <span className="text-sm text-gray-400 font-medium uppercase">When to text {r.name}</span>
+                    <div className="mt-2">
+                      <WhenToText name={`when-${r.id}`} scheduled={hours.scheduled} schedule={hours.schedule}
+                        onChange={(v) => setHours({ ...hours, ...v })} />
+                    </div>
+                    <div className="mt-3 flex gap-2">
                       <button onClick={saveHours} className="px-4 py-1.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Save</button>
                       <button onClick={() => setHours(null)} className="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg">Cancel</button>
                     </div>
-                    {hoursError && <p className="text-red-500 text-sm mt-2 ml-7">{hoursError}</p>}
+                    {hoursError && <p className="text-red-500 text-sm mt-2">{hoursError}</p>}
                   </td>
                 </tr>
               )}

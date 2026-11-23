@@ -75,18 +75,18 @@ describe("isWithinSchedule", () => {
 
 describe("onDuty", () => {
   const person = { name: "Matt", schedule: null };
-  const agent = { name: "AI agent", schedule: weekdays9to5 };
+  const scheduled = { name: "Weekdays 9-5", schedule: weekdays9to5 };
 
   it("always keeps recipients without a schedule", () => {
     expect(onDuty([person], at("2026-11-21T03:00:00Z"))).toEqual([person]); // Sat 14:00
   });
 
   it("keeps a scheduled recipient inside its hours", () => {
-    expect(onDuty([person, agent], at("2026-11-19T03:30:00Z"))).toEqual([person, agent]); // Thu 14:30
+    expect(onDuty([person, scheduled], at("2026-11-19T03:30:00Z"))).toEqual([person, scheduled]); // Thu 14:30
   });
 
   it("skips a scheduled recipient outside its hours", () => {
-    expect(onDuty([person, agent], at("2026-11-19T09:00:00Z"))).toEqual([person]); // Thu 20:00
+    expect(onDuty([person, scheduled], at("2026-11-19T09:00:00Z"))).toEqual([person]); // Thu 20:00
   });
 });
 });

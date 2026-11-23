@@ -404,7 +404,7 @@ Respond with ONLY the urgency level name (e.g. "high"). No explanation, no other
     .select("*")
     .eq(urgencyColumn, true)
     .eq("is_active", true);
-  // AI agent numbers only get a copy inside their scheduled hours.
+  // Recipients with a schedule only get texts inside their days and times.
   const recipients = onDuty(allRecipients ?? []);
 
   let smsSent = 0;
@@ -502,7 +502,7 @@ Respond with ONLY "YES" or "NO". Nothing else.`,
     .select("*")
     .eq("receives_extras", true)
     .eq("is_active", true);
-  // AI agent numbers only get a copy inside their scheduled hours.
+  // Recipients with a schedule only get texts inside their days and times.
   const recipients = onDuty(allRecipients ?? []);
 
   if (!recipients || recipients.length === 0) {
@@ -605,7 +605,7 @@ async function subWorkflowD(
     .or("receives_kb_gaps.eq.true,receives_kb_general.eq.true,receives_kb_cleaning.eq.true,receives_kb_maintenance.eq.true")
     .eq("is_active", true);
 
-  // Off-duty AI agent numbers drop out first, so the General fallback still covers them.
+  // Recipients outside their schedule drop out first, so the General fallback still covers them.
   const recipients = selectKbGapRecipients(onDuty((candidates ?? []) as KbGapRecipient[]), category);
   const smsBody = kbGapSmsBody(ctx.propertyName, guestQuestion, category);
   for (const r of recipients) {
@@ -640,7 +640,7 @@ async function subWorkflowE(
     .select("*")
     .eq("receives_checkin_checkout", true)
     .eq("is_active", true);
-  // AI agent numbers only get a copy inside their scheduled hours.
+  // Recipients with a schedule only get texts inside their days and times.
   const recipients = onDuty(allRecipients ?? []);
 
   // E2: Send SMS to each recipient

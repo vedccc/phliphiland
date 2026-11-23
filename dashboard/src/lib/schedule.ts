@@ -1,8 +1,8 @@
-// SMS recipient schedules (SMS Recipients → AI agent number): a recipient with a
+// SMS recipient schedules (SMS Recipients → "When to text"): a recipient with a
 // schedule only gets texts inside its weekly hours, in Melbourne time
 // (Phillip Island, VIC — AEST/AEDT, DST-aware). Recipients without one always do.
 //
-// Dashboard copy: used by SMS Recipients to show whether the agent number is on duty.
+// Dashboard copy: used by SMS Recipients to show whether a recipient is getting texts now.
 // Copies: supabase/functions/_shared/schedule.ts, trigger/helpers/schedule.ts. Keep them identical — backend/tests/schedule.test.ts runs
 // the same suite against the backend copies.
 
@@ -78,9 +78,9 @@ export function isWithinSchedule(schedule: WeeklySchedule, now: Date): boolean {
 export interface Scheduled { schedule?: WeeklySchedule | null }
 
 /**
- * Keep only recipients on duty right now. No schedule = always on duty (every
- * person on the list); a scheduled recipient (an AI agent number) only inside
- * its hours. Outside them its copy is skipped, not queued.
+ * Keep only recipients who should get texts right now. No schedule = always;
+ * a recipient with a schedule only inside its days and times. Outside them its
+ * text is skipped, not queued.
  */
 export function onDuty<T extends Scheduled>(recipients: T[], now: Date = new Date()): T[] {
   return recipients.filter((r) => !r.schedule || isWithinSchedule(r.schedule, now));

@@ -81,7 +81,7 @@ export async function sendSms(to: string, message: string): Promise<void> {
 }
 
 // Active recipients who have `flag` set (e.g. "receives_maintenance_high").
-// AI agent numbers are included only inside their scheduled hours (onDuty).
+// Recipients with a schedule are included only inside their days and times (onDuty).
 export async function getRecipients(
   supabase: SupabaseClient,
   flag: string,
